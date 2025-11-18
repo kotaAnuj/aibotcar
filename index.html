@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Remote ESP Car Control</title>
+  <style>
+    body { text-align: center; font-family: Arial; padding: 20px; }
+    button { padding: 15px 30px; font-size: 20px; margin: 10px; }
+    #status { margin: 10px; color: green; }
+  </style>
+</head>
+<body>
+
+<h2>Remote ESP32 Car Controller</h2>
+
+<input id="wsurl" placeholder="ws://PUBLIC_IP:8080/ws" style="width:80%;padding:10px">
+<br>
+<button onclick="connect()">Connect</button>
+
+<p id="status">Not connected</p>
+
+<div>
+  <button onclick="sendCmd('forward')">Forward</button><br>
+  <button onclick="sendCmd('left')">Left</button>
+  <button onclick="sendCmd('right')">Right</button><br>
+  <button onclick="sendCmd('backward')">Backward</button><br>
+  <button onclick="sendCmd('stop')">Stop</button>
+</div>
+
+<script>
+let socket;
+
+function connect() {
+  const url = document.getElementById("wsurl").value;
+  socket = new WebSocket(url);
+
+  socket.onopen = () => {
+    document.getElementById("status").innerText = "Connected!";
+  };
+
+  socket.onclose = () => {
+    document.getElementById("status").innerText = "Disconnected";
+  };
+
+  socket.onerror = () => {
+    document.getElementById("status").innerText = "Error (Check IP)";
+  };
+
+  socket.onmessage = (msg) => {
+    console.log("ESP:", msg.data);
+  };
+}
+
+function sendCmd(cmd) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(cmd);
+  } else {
+    alert("Not connected");
+  }
+}
+</script>
+
+</body>
+</html>
