@@ -1,64 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Remote ESP Car Control</title>
+  <title>ESP Car Control</title>
   <style>
     body { text-align: center; font-family: Arial; padding: 20px; }
     button { padding: 15px 30px; font-size: 20px; margin: 10px; }
-    #status { margin: 10px; color: green; }
+    #status { margin: 10px; }
+    .connected { color: green; }
+    .disconnected { color: red; }
   </style>
 </head>
 <body>
 
-<h2>Remote ESP32 Car Controller</h2>
-
-<input id="wsurl" placeholder="ws://PUBLIC_IP:8080/ws" style="width:80%;padding:10px">
-<br>
-<button onclick="connect()">Connect</button>
-
-<p id="status">Not connected</p>
+<h2>ESP32 Car Controller (GitHub Pages)</h2>
 
 <div>
-  <button onclick="sendCmd('forward')">Forward</button><br>
-  <button onclick="sendCmd('left')">Left</button>
-  <button onclick="sendCmd('right')">Right</button><br>
-  <button onclick="sendCmd('backward')">Backward</button><br>
-  <button onclick="sendCmd('stop')">Stop</button>
+  <label>Local Server URL: </label>
+  <input id="serverUrl" placeholder="http://192.168.1.100:8080" style="width:300px;padding:10px">
+  <br><br>
+  <button onclick="testConnection()">Test Connection</button>
 </div>
 
+<p id="status" class="disconnected">Status: Not connected</p>
+
+<div>
+  <button onclick="sendCommand('forward')">Forward</button><br>
+  <button onclick="sendCommand('left')">Left</button>
+  <button onclick="sendCommand('right')">Right</button><br>
+  <button onclick="sendCommand('backward')">Backward</button><br>
+  <button onclick="sendCommand('stop')">Stop</button>
+</div>
+
+<div id="log" style="border:1px solid #ccc; padding:10px; margin:20px; min-height:100px; text-align:left;"></div>
+
 <script>
-let socket;
-
-function connect() {
-  const url = document.getElementById("wsurl").value;
-  socket = new WebSocket(url);
-
-  socket.onopen = () => {
-    document.getElementById("status").innerText = "Connected!";
-  };
-
-  socket.onclose = () => {
-    document.getElementById("status").innerText = "Disconnected";
-  };
-
-  socket.onerror = () => {
-    document.getElementById("status").innerText = "Error (Check IP)";
-  };
-
-  socket.onmessage = (msg) => {
-    console.log("ESP:", msg.data);
-  };
+function log(message) {
+  const logDiv = document.getElementById('log');
+  logDiv.innerHTML += new Date().toLocaleTimeString() + ': ' + message + '<br>';
+  logDiv.scrollTop = logDiv.scrollHeight;
 }
 
-function sendCmd(cmd) {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(cmd);
-  } else {
-    alert("Not connected");
+async function testConnection() {
+  const url = document.getElementById('serverUrl').value;
+  if (!url) {
+    alert('Please enter server URL');
+    return;
+  }
+
+  try {
+    const response = await fetch(url + '/ping');
+    if (response.ok) {
+      const data = await response.text();
+      document.getElementById('status').textContent = 'Status: Connected to local server';
+      document.getElementById('status').className = 'connected';
+      log('Successfully connected to local server');
+    } else {
+      throw new Error('Server response not OK');
+    }
+  } catch (error) {
+    document.getElementById('status').textContent = 'Status: Connection failed';
+    document.getElementById('status').className = 'disconnected';
+    log('Connection failed: ' + error.message);
+  }
+}
+
+async function sendCommand(command) {
+  const baseUrl = document.getElementById('serverUrl').value;
+  if (!baseUrl) {
+    alert('Please set server URL first');
+    return;
+  }
+
+  try {
+    const response = await fetch(baseUrl + '/command', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ command: command })
+    });
+
+    if (response.ok) {
+      const data = await response.text();
+      log('Command sent: ' + command + ' - Response: ' + data);
+    } else {
+      throw new Error('Failed to send command');
+    }
+  } catch (error) {
+    log('Error sending command: ' + error.message);
+    document.getElementById('status').textContent = 'Status: Connection lost';
+    document.getElementById('status').className = 'disconnected';
   }
 }
 </script>
-
 </body>
 </html>
