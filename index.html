@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Vision Car Controller</title>
+    <title>AI Autonomous Car Controller</title>
     <style>
         * {
             margin: 0;
@@ -12,722 +12,582 @@
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             min-height: 100vh;
             padding: 20px;
-            color: #333;
+            color: #eee;
         }
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-        }
-        h1 {
-            color: #2d3748;
-            margin-bottom: 10px;
-            font-size: 2.2em;
-            text-align: center;
-        }
-        .subtitle {
-            color: #718096;
-            margin-bottom: 30px;
-            text-align: center;
-            font-size: 1.1em;
-        }
-        .grid-layout {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
-            margin-bottom: 20px;
-        }
-        @media (max-width: 1024px) {
-            .grid-layout {
-                grid-template-columns: 1fr;
-            }
         }
         .panel {
-            background: #f7fafc;
-            padding: 20px;
-            border-radius: 12px;
-            border: 2px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .panel h3 {
-            color: #2d3748;
+        h1 {
+            text-align: center;
+            grid-column: 1 / -1;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        h2 {
+            color: #81e6d9;
             margin-bottom: 15px;
-            font-size: 1.3em;
+            font-size: 1.5em;
         }
-        .video-container {
-            position: relative;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 15px;
-            min-height: 300px;
+        .status-badge {
+            display: inline-block;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px;
         }
-        #webcam {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        #canvas {
-            display: none;
-        }
-        .video-overlay {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0,0,0,0.7);
+        .status-connected {
+            background: #48bb78;
             color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.9em;
-            z-index: 10;
+        }
+        .status-disconnected {
+            background: #f56565;
+            color: white;
+        }
+        .status-active {
+            background: #4299e1;
+            color: white;
         }
         .input-group {
-            margin-bottom: 15px;
+            margin: 15px 0;
         }
         .input-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: 600;
-            color: #4a5568;
+            margin-bottom: 8px;
+            color: #cbd5e0;
+            font-weight: 500;
         }
         .input-group input, .input-group textarea {
             width: 100%;
             padding: 12px;
-            border: 2px solid #cbd5e0;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
+            color: white;
             font-size: 14px;
-            font-family: inherit;
         }
         .input-group textarea {
-            min-height: 80px;
+            min-height: 100px;
+            font-family: inherit;
             resize: vertical;
         }
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .status-item {
-            background: #f7fafc;
-            padding: 12px;
-            border-radius: 8px;
-            border: 2px solid #e2e8f0;
-            text-align: center;
-        }
-        .status-label {
-            font-size: 0.8em;
-            color: #718096;
-            margin-bottom: 5px;
-        }
-        .status-value {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #2d3748;
-        }
-        .status-connected { border-color: #48bb78; background: #f0fff4; }
-        .status-active { border-color: #4299e1; background: #ebf8ff; }
-        .btn {
-            padding: 14px 28px;
+        button {
+            padding: 12px 24px;
             border: none;
-            border-radius: 10px;
-            font-size: 16px;
+            border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s;
+            font-size: 16px;
             margin: 5px;
         }
-        .btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
         }
-        .btn-primary { background: #4299e1; color: white; }
-        .btn-success { background: #48bb78; color: white; }
-        .btn-danger { background: #f56565; color: white; }
-        .btn-warning { background: #ed8936; color: white; }
-        .btn-secondary { background: #a0aec0; color: white; }
-        .btn:disabled {
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
-        .controls {
-            text-align: center;
-            margin: 20px 0;
-        }
-        .warning-box {
-            background: #fffaf0;
-            border-left: 4px solid #ed8936;
-            padding: 15px;
+        #videoFeed {
+            width: 100%;
+            border-radius: 10px;
+            background: #000;
             margin: 15px 0;
-            border-radius: 0 8px 8px 0;
         }
-        .info-box {
-            background: #ebf8ff;
-            border-left: 4px solid #4299e1;
-            padding: 15px;
-            margin: 15px 0;
-            border-radius: 0 8px 8px 0;
-        }
-        #log {
-            background: #1a202c;
-            color: #cbd5e0;
-            padding: 15px;
-            border-radius: 8px;
-            height: 350px;
-            overflow-y: auto;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-        }
-        .log-entry {
-            margin-bottom: 5px;
-            padding: 3px 0;
-        }
-        .log-time { color: #81e6d9; }
-        .log-success { color: #68d391; }
-        .log-error { color: #fc8181; }
-        .log-info { color: #90cdf4; }
-        .log-ai { color: #fbb6ce; }
-        .log-vision { color: #fbd38d; }
-        .ai-thinking {
-            background: #edf2f7;
-            border: 2px dashed #4299e1;
+        #aiThoughts {
+            background: rgba(0, 0, 0, 0.5);
             padding: 15px;
             border-radius: 10px;
-            margin: 10px 0;
-            text-align: center;
-            display: none;
+            min-height: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            border: 1px solid rgba(129, 230, 217, 0.3);
         }
-        .ai-thinking.active { display: block; }
-        .thinking-animation {
-            display: inline-block;
-            animation: pulse 1.5s ease-in-out infinite;
+        .thought-entry {
+            margin-bottom: 10px;
+            padding: 8px;
+            background: rgba(129, 230, 217, 0.1);
+            border-radius: 5px;
         }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .thought-time {
+            color: #81e6d9;
+            font-size: 0.85em;
         }
-        .manual-controls {
+        .thought-action {
+            color: #fbd38d;
+            font-weight: bold;
+        }
+        .controls-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            grid-template-rows: repeat(3, 1fr);
-            gap: 12px;
+            gap: 10px;
             margin: 20px 0;
         }
         .control-btn {
-            padding: 20px 10px;
-            border: none;
-            border-radius: 12px;
-            font-size: 16px;
+            padding: 15px;
+            background: rgba(66, 153, 225, 0.3);
+            border: 2px solid #4299e1;
+            color: white;
+            border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.2s;
-            min-height: 80px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
         }
-        .control-btn:active:not(:disabled) { transform: scale(0.95); }
-        .control-btn:hover:not(:disabled) { filter: brightness(110%); }
-        .forward { grid-column: 2; grid-row: 1; background: #48bb78; color: white; }
-        .backward { grid-column: 2; grid-row: 3; background: #48bb78; color: white; }
-        .left { grid-column: 1; grid-row: 2; background: #4299e1; color: white; }
-        .right { grid-column: 3; grid-row: 2; background: #4299e1; color: white; }
-        .stop { grid-column: 2; grid-row: 2; background: #f56565; color: white; font-size: 18px; }
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .stat-box {
+            background: rgba(72, 187, 120, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(72, 187, 120, 0.3);
+        }
+        .stat-label {
+            font-size: 0.85em;
+            color: #cbd5e0;
+        }
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #81e6d9;
+        }
+        .warning-box {
+            background: rgba(237, 137, 54, 0.2);
+            border: 2px solid #ed8936;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🤖👁️ AI Vision Autonomous Car</h1>
-        <p class="subtitle">Direct embedded control with Gemini 2.0 Flash Vision</p>
-
-        <div class="info-box">
-            <strong>💡 How This Works:</strong> This page runs DIRECTLY from your ESP32's web server (same domain). 
-            AI analyzes camera feed and sends commands every few seconds. No CORS issues!
-        </div>
-
-        <div class="grid-layout">
-            <div class="panel">
-                <h3>📹 AI Vision Feed</h3>
-                <div class="video-container">
-                    <video id="webcam" autoplay playsinline></video>
-                    <canvas id="canvas"></canvas>
-                    <div class="video-overlay" id="videoStatus">📷 Camera Off</div>
-                </div>
-                <button class="btn btn-primary" onclick="startCamera()">📷 Start Camera</button>
-                <button class="btn btn-secondary" onclick="stopCamera()">⏹️ Stop Camera</button>
-                <div class="warning-box">
-                    <strong>📱 Mount Camera:</strong> Attach phone/webcam to car facing forward. AI sees what camera sees!
-                </div>
-            </div>
-
-            <div class="panel">
-                <h3>⚙️ AI Configuration</h3>
-                <div class="input-group">
-                    <label for="apiKey">🔑 Gemini API Key:</label>
-                    <input type="password" id="apiKey" placeholder="Get from: aistudio.google.com/apikey">
-                    <small style="color: #718096;">Free tier: 15 requests/min</small>
-                </div>
-                <div class="input-group">
-                    <label for="interval">⏱️ Decision Interval (ms):</label>
-                    <input type="number" id="interval" value="4000" min="2000" max="10000" step="1000">
-                    <small style="color: #718096;">4000ms = 15 req/min (free tier safe)</small>
-                </div>
-                <div class="input-group">
-                    <label for="mission">🎯 AI Mission:</label>
-                    <textarea id="mission">You are an autonomous robot car exploring your environment. Navigate safely, avoid obstacles, explore new areas, and move smoothly. Think like a curious intelligent being with a camera as your eyes and wheels as your legs.</textarea>
-                </div>
-            </div>
-        </div>
-
-        <div class="status-grid">
-            <div class="status-item" id="cameraStatus">
-                <div class="status-label">Camera</div>
-                <div class="status-value">📷 Off</div>
-            </div>
-            <div class="status-item status-connected">
-                <div class="status-label">ESP32 Connection</div>
-                <div class="status-value">✅ Same-Origin</div>
-            </div>
-            <div class="status-item" id="aiStatusBox">
-                <div class="status-label">AI Brain</div>
-                <div class="status-value">⏸️ Idle</div>
-            </div>
-            <div class="status-item">
-                <div class="status-label">Commands Sent</div>
-                <div class="status-value" id="commandCount">0</div>
-            </div>
-        </div>
-
-        <div class="ai-thinking" id="thinkingBox">
-            <span class="thinking-animation">🧠 AI is analyzing camera view and deciding next move...</span>
-        </div>
-
+        <h1>🤖 AI Autonomous Car Controller</h1>
+        
+        <!-- Configuration Panel -->
         <div class="panel">
-            <h3>🎮 Control Panel</h3>
-            <div class="controls">
-                <button class="btn btn-success" id="startBtn" onclick="startAutonomous()" disabled>
-                    🚀 START AUTONOMOUS MODE
-                </button>
-                <button class="btn btn-danger" id="stopBtn" onclick="stopAutonomous()" disabled>
-                    ⏹️ STOP AI
-                </button>
-                <button class="btn btn-warning" onclick="emergencyStop()">
-                    🚨 EMERGENCY STOP
-                </button>
+            <h2>⚙️ Configuration</h2>
+            
+            <div class="input-group">
+                <label>ESP32 IP Address:</label>
+                <input type="text" id="espIp" placeholder="192.168.1.100" value="192.168.1.100">
             </div>
+            
+            <div class="input-group">
+                <label>Gemini API Key:</label>
+                <input type="text" id="geminiKey" placeholder="Your-Gemini-API-Key" value="">
+            </div>
+            
+            <div class="input-group">
+                <label>Command Interval (seconds):</label>
+                <input type="number" id="commandInterval" value="2" min="1" max="10">
+            </div>
+            
+            <div class="input-group">
+                <label>AI System Prompt (How the AI should behave):</label>
+                <textarea id="systemPrompt">You are an autonomous car AI. You can see through a camera mounted on the car. Your mission is to navigate safely and avoid obstacles.
 
-            <h3 style="margin-top: 25px; text-align: center;">Manual Override Controls</h3>
-            <div class="manual-controls">
-                <button class="control-btn forward" onclick="manualCommand('FORWARD')" id="manualForward">
-                    ↑<br><span>FORWARD</span>
-                </button>
-                <button class="control-btn backward" onclick="manualCommand('BACKWARD')" id="manualBackward">
-                    ↓<br><span>BACKWARD</span>
-                </button>
-                <button class="control-btn left" onclick="manualCommand('LEFT')" id="manualLeft">
-                    ←<br><span>LEFT</span>
-                </button>
-                <button class="control-btn right" onclick="manualCommand('RIGHT')" id="manualRight">
-                    →<br><span>RIGHT</span>
-                </button>
-                <button class="control-btn stop" onclick="manualCommand('STOP')" id="manualStop">
-                    ⏹<br><span>STOP</span>
-                </button>
+Available commands:
+- FORWARD: Move the car forward
+- BACKWARD: Move the car backward
+- LEFT: Turn left
+- RIGHT: Turn right
+- STOP: Stop all motors
+
+You must respond ONLY with ONE of these commands based on what you see. Analyze the image, identify obstacles, paths, and decide the safest direction.
+
+Respond in this format:
+COMMAND: [ONE_COMMAND]
+REASON: [Brief explanation of your decision]
+
+Remember: You ARE the car. This is your body. Navigate carefully and make smart decisions every 2 seconds.</textarea>
             </div>
-            <div style="text-align: center; color: #718096; margin-top: 10px;">
-                💡 Use arrow keys (↑←↓→) and spacebar for manual control
+            
+            <button class="btn-primary" onclick="testESP()">🔌 Test ESP32 Connection</button>
+            <button class="btn-success" onclick="startCamera()">📹 Start Camera</button>
+            
+            <div style="margin-top: 20px;">
+                <span class="status-badge" id="espStatus">ESP32: Not Connected</span>
+                <span class="status-badge" id="cameraStatus">Camera: Off</span>
+                <span class="status-badge" id="aiStatus">AI: Idle</span>
             </div>
         </div>
-
+        
+        <!-- Vision Panel -->
         <div class="panel">
-            <h3>📊 Activity Log & AI Decisions</h3>
-            <div id="log"></div>
+            <h2>👁️ AI Vision Feed</h2>
+            <video id="videoFeed" autoplay playsinline></video>
+            <canvas id="captureCanvas" style="display: none;"></canvas>
+            
+            <div style="text-align: center; margin: 15px 0;">
+                <button class="btn-success" id="autonomousBtn" onclick="toggleAutonomous()" disabled>
+                    🤖 Start Autonomous Mode
+                </button>
+                <button class="btn-danger" onclick="emergencyStop()">
+                    🛑 EMERGENCY STOP
+                </button>
+            </div>
+        </div>
+        
+        <!-- AI Thoughts Panel -->
+        <div class="panel">
+            <h2>🧠 AI Decision Log</h2>
+            <div id="aiThoughts"></div>
+        </div>
+        
+        <!-- Manual Control Panel -->
+        <div class="panel">
+            <h2>🎮 Manual Override</h2>
+            <div class="warning-box">
+                ⚠️ Manual controls will pause autonomous mode
+            </div>
+            
+            <div class="controls-grid">
+                <div></div>
+                <button class="control-btn" onclick="sendManualCommand('FORWARD')">↑<br>FORWARD</button>
+                <div></div>
+                <button class="control-btn" onclick="sendManualCommand('LEFT')">←<br>LEFT</button>
+                <button class="control-btn" onclick="sendManualCommand('STOP')">⏹<br>STOP</button>
+                <button class="control-btn" onclick="sendManualCommand('RIGHT')">→<br>RIGHT</button>
+                <div></div>
+                <button class="control-btn" onclick="sendManualCommand('BACKWARD')">↓<br>BACKWARD</button>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Commands Sent</div>
+                    <div class="stat-value" id="commandCount">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="uptime">0s</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Last Command</div>
+                    <div class="stat-value" id="lastCommand">NONE</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Mode</div>
+                    <div class="stat-value" id="currentMode">MANUAL</div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Global state
-        let stream = null;
-        let cameraActive = false;
-        let autonomousActive = false;
+        let espIpAddress = '';
+        let geminiApiKey = '';
+        let autonomousMode = false;
         let autonomousInterval = null;
+        let videoStream = null;
         let commandCount = 0;
-        let conversationHistory = [];
-        let lastCommand = '';
-        let commandRepeatCount = 0;
-
-        // Logging function
-        function log(message, type = 'info') {
-            const logDiv = document.getElementById('log');
-            const timestamp = new Date().toLocaleTimeString();
-            const typeMap = {
-                'error': 'log-error',
-                'success': 'log-success',
-                'ai': 'log-ai',
-                'vision': 'log-vision',
-                'info': 'log-info'
-            };
+        let startTime = Date.now();
+        
+        // Update uptime
+        setInterval(() => {
+            const uptime = Math.floor((Date.now() - startTime) / 1000);
+            document.getElementById('uptime').textContent = uptime + 's';
+        }, 1000);
+        
+        // Test ESP32 connection
+        async function testESP() {
+            espIpAddress = document.getElementById('espIp').value;
             
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.innerHTML = `<span class="log-time">[${timestamp}]</span> <span class="${typeMap[type]}">${message}</span>`;
-            
-            logDiv.appendChild(logEntry);
-            logDiv.scrollTop = logDiv.scrollHeight;
-            console.log(`[${timestamp}] ${message}`);
+            try {
+                const response = await fetch(`http://${espIpAddress}/status`);
+                const data = await response.json();
+                
+                document.getElementById('espStatus').textContent = '✅ ESP32: Connected';
+                document.getElementById('espStatus').className = 'status-badge status-connected';
+                
+                logThought('ESP32 connected successfully!', 'SUCCESS');
+                alert('✅ ESP32 connected!\n' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                document.getElementById('espStatus').textContent = '❌ ESP32: Failed';
+                document.getElementById('espStatus').className = 'status-badge status-disconnected';
+                
+                logThought('Failed to connect to ESP32', 'ERROR');
+                alert('❌ Failed to connect to ESP32!\n\nMake sure:\n1. ESP32 is powered on\n2. IP address is correct\n3. You are on the same WiFi network');
+            }
         }
-
-        // Camera functions
+        
+        // Start camera
         async function startCamera() {
             try {
-                stream = await navigator.mediaDevices.getUserMedia({
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
-                        facingMode: 'environment',
                         width: { ideal: 640 },
                         height: { ideal: 480 }
-                    }
+                    } 
                 });
                 
-                const video = document.getElementById('webcam');
-                video.srcObject = stream;
-                cameraActive = true;
+                const video = document.getElementById('videoFeed');
+                video.srcObject = videoStream;
                 
-                document.getElementById('videoStatus').textContent = '🟢 Camera Active';
-                document.getElementById('cameraStatus').classList.add('status-active');
-                document.getElementById('cameraStatus').querySelector('.status-value').textContent = '📹 Active';
+                document.getElementById('cameraStatus').textContent = '✅ Camera: Active';
+                document.getElementById('cameraStatus').className = 'status-badge status-connected';
+                document.getElementById('autonomousBtn').disabled = false;
                 
-                log('✅ Camera started - AI can now see!', 'success');
-                updateStartButton();
+                logThought('Camera started - AI can now see!', 'SUCCESS');
             } catch (error) {
-                log(`❌ Camera error: ${error.message}`, 'error');
-                alert('Camera access denied. Please allow camera permissions and try again.');
+                alert('❌ Failed to access camera!\n\nPlease allow camera permissions.');
+                logThought('Camera access denied', 'ERROR');
             }
         }
-
-        function stopCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-                cameraActive = false;
-                
-                document.getElementById('videoStatus').textContent = '📷 Camera Off';
-                document.getElementById('cameraStatus').classList.remove('status-active');
-                document.getElementById('cameraStatus').querySelector('.status-value').textContent = '📷 Off';
-                
-                log('Camera stopped', 'info');
-                updateStartButton();
-            }
-        }
-
-        function updateStartButton() {
-            const apiKeyInput = document.getElementById('apiKey').value.trim();
-            const canStart = cameraActive && apiKeyInput.length > 30;
-            document.getElementById('startBtn').disabled = !canStart;
-            
-            if (!apiKeyInput && cameraActive) {
-                log('⚠️ Need Gemini API key to start autonomous mode', 'info');
-            }
-        }
-
-        document.getElementById('apiKey').addEventListener('input', updateStartButton);
-
-        // Capture frame from camera
-        async function captureFrame() {
-            const video = document.getElementById('webcam');
-            const canvas = document.getElementById('canvas');
+        
+        // Capture frame from video
+        function captureFrame() {
+            const video = document.getElementById('videoFeed');
+            const canvas = document.getElementById('captureCanvas');
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0);
             
-            return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
+            return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
         }
-
-        // AI Decision Making with Vision
-        async function getAIDecision() {
-            if (!cameraActive) {
-                log('❌ Camera not active - cannot get AI decision', 'error');
-                return 'STOP';
+        
+        // Send command to ESP32
+        async function sendCommand(command) {
+            if (!espIpAddress) {
+                alert('Please test ESP32 connection first!');
+                return false;
             }
-
-            document.getElementById('thinkingBox').classList.add('active');
             
             try {
-                const imageBase64 = await captureFrame();
-                const mission = document.getElementById('mission').value;
-                const recentHistory = conversationHistory.slice(-5).join(' → ');
-                
-                const prompt = `🤖 YOU ARE AN AUTONOMOUS ROBOT CAR
-
-YOUR BODY:
-- You have TWO WHEELS (differential drive)
-- You see through YOUR CAMERA EYES (the image you're analyzing)
-- You can execute these PHYSICAL ACTIONS:
-
-COMMANDS YOU CAN DO:
-• FORWARD - Drive your body forward
-• BACKWARD - Drive your body backward
-• LEFT - Rotate your body left (spot turn)
-• RIGHT - Rotate your body right (spot turn)
-• STOP - Stop all movement
-
-YOUR MISSION:
-${mission}
-
-YOUR RECENT MEMORY (last actions you took):
-${recentHistory || 'Just awakened, no actions yet'}
-
-🧠 INTELLIGENT NAVIGATION RULES:
-1. ANALYZE what you SEE in the camera image
-2. If you see OPEN SPACE ahead → probably safe to go FORWARD
-3. If you see OBSTACLES/WALLS close → turn LEFT or RIGHT to avoid
-4. If you're TOO CLOSE to something → BACKWARD first, then turn
-5. EXPLORE by varying your movements - don't repeat same action 3+ times in a row
-6. Think like an intelligent being exploring its world
-7. Move CONFIDENTLY but SAFELY
-
-🎯 NOW: Look at the camera image. What do you see? What should you do next?
-
-RESPOND WITH ONLY ONE WORD - THE COMMAND:
-FORWARD, BACKWARD, LEFT, RIGHT, or STOP`;
-
-                log('🧠 AI analyzing vision feed...', 'vision');
-                
-                const apiKey = document.getElementById('apiKey').value.trim();
-                
-                const response = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-                    {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            contents: [{
-                                parts: [
-                                    { text: prompt },
-                                    { 
-                                        inline_data: {
-                                            mime_type: 'image/jpeg',
-                                            data: imageBase64
-                                        }
-                                    }
-                                ]
-                            }],
-                            generationConfig: {
-                                temperature: 0.7,
-                                maxOutputTokens: 100
-                            }
-                        })
-                    }
-                );
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error?.message || `HTTP ${response.status}`);
-                }
-
-                const data = await response.json();
-                const aiText = data.candidates[0].content.parts[0].text.trim().toUpperCase();
-                
-                const validCommands = ['FORWARD', 'BACKWARD', 'LEFT', 'RIGHT', 'STOP'];
-                let command = validCommands.find(cmd => aiText.includes(cmd));
-                
-                if (!command) {
-                    log(`⚠️ AI response unclear: "${aiText.substring(0, 50)}", defaulting to FORWARD`, 'ai');
-                    command = 'FORWARD';
-                } else {
-                    log(`🤖 AI DECIDED: ${command} | Reasoning: ${aiText.substring(0, 80)}...`, 'ai');
-                }
-                
-                // Track repetition
-                if (command === lastCommand) {
-                    commandRepeatCount++;
-                    if (commandRepeatCount >= 3) {
-                        log(`⚠️ Repeated ${command} 3 times, forcing variation...`, 'ai');
-                        const alternatives = validCommands.filter(c => c !== command && c !== 'STOP');
-                        command = alternatives[Math.floor(Math.random() * alternatives.length)];
-                        commandRepeatCount = 0;
-                    }
-                } else {
-                    commandRepeatCount = 0;
-                }
-                lastCommand = command;
-                
-                conversationHistory.push(command);
-                if (conversationHistory.length > 10) conversationHistory.shift();
-                
-                return command;
-                
-            } catch (error) {
-                log(`❌ AI ERROR: ${error.message}`, 'error');
-                if (error.message.includes('API_KEY_INVALID') || error.message.includes('API key')) {
-                    log('🔑 INVALID API KEY! Get one from: https://aistudio.google.com/apikey', 'error');
-                    stopAutonomous();
-                }
-                return 'STOP';
-            } finally {
-                document.getElementById('thinkingBox').classList.remove('active');
-            }
-        }
-
-        // Send command to ESP32 (same-origin, no CORS issues!)
-        async function sendCommand(command) {
-            try {
-                const response = await fetch('/control', {
+                const response = await fetch(`http://${espIpAddress}/control`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ command: command })
                 });
-
+                
                 if (response.ok) {
                     commandCount++;
                     document.getElementById('commandCount').textContent = commandCount;
-                    log(`✅ Executed: ${command}`, 'success');
+                    document.getElementById('lastCommand').textContent = command;
                     return true;
-                } else {
-                    throw new Error(`HTTP ${response.status}`);
                 }
+                return false;
             } catch (error) {
-                log(`❌ Command failed: ${error.message}`, 'error');
-                log('Make sure ESP32 is powered on and connected!', 'error');
+                logThought('Failed to send command to ESP32', 'ERROR');
                 return false;
             }
         }
-
-        // Manual control
-        async function manualCommand(command) {
-            if (autonomousActive) {
-                log('⚠️ Stop autonomous mode first to use manual control', 'info');
+        
+        // Ask Gemini AI for decision
+        async function askGeminiForDecision() {
+            geminiApiKey = document.getElementById('geminiKey').value;
+            
+            if (!geminiApiKey) {
+                alert('Please enter your Gemini API key!');
+                stopAutonomous();
                 return;
             }
-            await sendCommand(command);
-        }
-
-        // Keyboard controls
-        document.addEventListener('keydown', (e) => {
-            if (autonomousActive) return;
             
-            const keyMap = {
-                'ArrowUp': 'FORWARD',
-                'ArrowDown': 'BACKWARD',
-                'ArrowLeft': 'LEFT',
-                'ArrowRight': 'RIGHT',
-                ' ': 'STOP'
-            };
+            const imageBase64 = captureFrame();
+            const systemPrompt = document.getElementById('systemPrompt').value;
             
-            if (keyMap[e.key]) {
-                e.preventDefault();
-                manualCommand(keyMap[e.key]);
-            }
-        });
-
-        // Autonomous loop
-        async function autonomousLoop() {
-            if (!autonomousActive) return;
-
             try {
-                const command = await getAIDecision();
-                await sendCommand(command);
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{
+                            parts: [
+                                { text: systemPrompt },
+                                { 
+                                    inline_data: {
+                                        mime_type: "image/jpeg",
+                                        data: imageBase64
+                                    }
+                                }
+                            ]
+                        }]
+                    })
+                });
+                
+                const data = await response.json();
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                
+                // Parse command from AI response
+                const commandMatch = aiResponse.match(/COMMAND:\s*(\w+)/i);
+                const reasonMatch = aiResponse.match(/REASON:\s*(.+)/i);
+                
+                if (commandMatch) {
+                    const command = commandMatch[1].toUpperCase();
+                    const reason = reasonMatch ? reasonMatch[1] : 'No reason provided';
+                    
+                    logThought(`AI Decision: ${command} - ${reason}`, 'AI');
+                    
+                    const success = await sendCommand(command);
+                    if (success) {
+                        logThought(`Command ${command} executed successfully`, 'SUCCESS');
+                    }
+                } else {
+                    logThought('AI response format error', 'ERROR');
+                }
+                
             } catch (error) {
-                log(`❌ Autonomous loop error: ${error.message}`, 'error');
+                logThought('Gemini API error: ' + error.message, 'ERROR');
             }
         }
-
+        
+        // Toggle autonomous mode
+        function toggleAutonomous() {
+            if (!autonomousMode) {
+                startAutonomous();
+            } else {
+                stopAutonomous();
+            }
+        }
+        
         function startAutonomous() {
-            if (!cameraActive) {
-                alert('Please start the camera first!');
-                return;
-            }
-
-            const apiKey = document.getElementById('apiKey').value.trim();
-            if (!apiKey || apiKey.length < 30) {
-                alert('Please enter a valid Gemini API key!');
-                return;
-            }
-
-            const interval = parseInt(document.getElementById('interval').value);
+            autonomousMode = true;
+            const interval = parseInt(document.getElementById('commandInterval').value) * 1000;
             
-            autonomousActive = true;
-            conversationHistory = [];
-            commandCount = 0;
-            lastCommand = '';
-            commandRepeatCount = 0;
+            document.getElementById('autonomousBtn').textContent = '⏸️ Pause Autonomous Mode';
+            document.getElementById('autonomousBtn').className = 'btn-danger';
+            document.getElementById('aiStatus').textContent = '🤖 AI: ACTIVE';
+            document.getElementById('aiStatus').className = 'status-badge status-active';
+            document.getElementById('currentMode').textContent = 'AUTO';
             
-            // Disable manual controls
-            ['manualForward', 'manualBackward', 'manualLeft', 'manualRight', 'manualStop'].forEach(id => {
-                document.getElementById(id).disabled = true;
-            });
+            logThought('🚗 Autonomous mode STARTED - AI is now in control!', 'SUCCESS');
             
-            document.getElementById('aiStatusBox').classList.add('status-active');
-            document.getElementById('aiStatusBox').querySelector('.status-value').textContent = '🤖 DRIVING';
-            document.getElementById('startBtn').disabled = true;
-            document.getElementById('stopBtn').disabled = false;
+            // First decision immediately
+            askGeminiForDecision();
             
-            log('🚀 ═══════════════════════════════════════', 'success');
-            log('🚀 AUTONOMOUS MODE ACTIVATED!', 'success');
-            log('🚀 ═══════════════════════════════════════', 'success');
-            log(`🎯 Mission: ${document.getElementById('mission').value.substring(0, 100)}...`, 'info');
-            log(`⏱️ AI will decide every ${interval}ms (${Math.floor(60000/interval)} decisions/minute)`, 'info');
-            log('📹 Camera feed being analyzed in real-time', 'vision');
-            
-            // Start autonomous control
-            autonomousLoop();
-            autonomousInterval = setInterval(autonomousLoop, interval);
+            // Then every interval
+            autonomousInterval = setInterval(askGeminiForDecision, interval);
         }
-
+        
         function stopAutonomous() {
-            autonomousActive = false;
-            if (autonomousInterval) {
-                clearInterval(autonomousInterval);
-                autonomousInterval = null;
-            }
+            autonomousMode = false;
+            clearInterval(autonomousInterval);
             
-            // Re-enable manual controls
-            ['manualForward', 'manualBackward', 'manualLeft', 'manualRight', 'manualStop'].forEach(id => {
-                document.getElementById(id).disabled = false;
-            });
-            
-            document.getElementById('aiStatusBox').classList.remove('status-active');
-            document.getElementById('aiStatusBox').querySelector('.status-value').textContent = '⏸️ Idle';
-            document.getElementById('startBtn').disabled = false;
-            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('autonomousBtn').textContent = '🤖 Start Autonomous Mode';
+            document.getElementById('autonomousBtn').className = 'btn-success';
+            document.getElementById('aiStatus').textContent = 'AI: Idle';
+            document.getElementById('aiStatus').className = 'status-badge status-disconnected';
+            document.getElementById('currentMode').textContent = 'MANUAL';
             
             sendCommand('STOP');
-            log('⏹️ ═══════════════════════════════════════', 'info');
-            log('⏹️ Autonomous mode stopped - Manual control enabled', 'info');
-            log('⏹️ ═══════════════════════════════════════', 'info');
+            logThought('Autonomous mode STOPPED', 'INFO');
         }
-
+        
+        // Emergency stop
         async function emergencyStop() {
-            log('🚨 ═══════════════════════════════════════', 'error');
-            log('🚨 EMERGENCY STOP ACTIVATED!', 'error');
-            log('🚨 ═══════════════════════════════════════', 'error');
             stopAutonomous();
             await sendCommand('STOP');
-            await sendCommand('STOP');
-            await sendCommand('STOP');
+            logThought('🚨 EMERGENCY STOP activated!', 'ERROR');
         }
-
-        // Initialize
-        log('👁️🤖 Vision-Based AI Car Controller Ready!', 'success');
-        log('═══════════════════════════════════════', 'info');
-        log('✅ Running from ESP32 web server (no CORS issues)', 'success');
-        log('', 'info');
-        log('📋 SETUP STEPS:', 'info');
-        log('1️⃣ Get Gemini API key: https://aistudio.google.com/apikey', 'info');
-        log('2️⃣ Mount camera on car (facing forward)', 'info');
-        log('3️⃣ Click "Start Camera" and allow permissions', 'info');
-        log('4️⃣ Enter API key above', 'info');
-        log('5️⃣ Click "START AUTONOMOUS MODE"', 'info');
-        log('', 'info');
-        log('🎮 Manual control available with arrow keys when AI is off', 'info');
-        log('═══════════════════════════════════════', 'info');
+        
+        // Manual command (pauses autonomous)
+        async function sendManualCommand(command) {
+            if (autonomousMode) {
+                stopAutonomous();
+                logThought('Autonomous mode paused for manual control', 'INFO');
+            }
+            
+            await sendCommand(command);
+            logThought(`Manual command: ${command}`, 'INFO');
+        }
+        
+        // Log AI thoughts
+        function logThought(message, type = 'INFO') {
+            const thoughtsDiv = document.getElementById('aiThoughts');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            const colors = {
+                'AI': '#fbd38d',
+                'SUCCESS': '#48bb78',
+                'ERROR': '#f56565',
+                'INFO': '#81e6d9'
+            };
+            
+            const entry = document.createElement('div');
+            entry.className = 'thought-entry';
+            entry.innerHTML = `
+                <div class="thought-time">[${timestamp}]</div>
+                <div style="color: ${colors[type] || '#cbd5e0'}">${message}</div>
+            `;
+            
+            thoughtsDiv.appendChild(entry);
+            thoughtsDiv.scrollTop = thoughtsDiv.scrollHeight;
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (autonomousMode) return;
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    sendManualCommand('FORWARD');
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    sendManualCommand('BACKWARD');
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    sendManualCommand('LEFT');
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    sendManualCommand('RIGHT');
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    sendManualCommand('STOP');
+                    break;
+            }
+        });
+        
+        // Initial log
+        logThought('AI Autonomous Car Controller initialized', 'SUCCESS');
+        logThought('Setup: 1) Enter ESP32 IP 2) Test connection 3) Add Gemini API key 4) Start camera 5) Start autonomous mode', 'INFO');
     </script>
 </body>
 </html>
