@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Autonomous Car Controller</title>
+    <title>AI Autonomous Car - DOM Control</title>
     <style>
         * {
             margin: 0;
@@ -12,38 +12,39 @@
         }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
-            color: #eee;
+            color: #333;
         }
-        .container {
-            max-width: 1400px;
+        .main-container {
+            max-width: 1600px;
             margin: 0 auto;
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 20px;
         }
         .panel {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
+            background: white;
             padding: 25px;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
         }
         h1 {
             text-align: center;
             grid-column: 1 / -1;
+            color: white;
             font-size: 2.5em;
             margin-bottom: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
         h2 {
-            color: #81e6d9;
+            color: #4a5568;
             margin-bottom: 15px;
             font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .status-badge {
             display: inline-block;
@@ -51,18 +52,27 @@
             border-radius: 20px;
             font-weight: bold;
             margin: 5px;
+            font-size: 0.9em;
         }
         .status-connected {
-            background: #48bb78;
-            color: white;
+            background: #c6f6d5;
+            color: #276749;
+            border: 2px solid #9ae6b4;
         }
         .status-disconnected {
-            background: #f56565;
-            color: white;
+            background: #fed7d7;
+            color: #c53030;
+            border: 2px solid #feb2b2;
         }
         .status-active {
-            background: #4299e1;
-            color: white;
+            background: #bee3f8;
+            color: #2c5282;
+            border: 2px solid #90cdf4;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
         .input-group {
             margin: 15px 0;
@@ -70,30 +80,35 @@
         .input-group label {
             display: block;
             margin-bottom: 8px;
-            color: #cbd5e0;
-            font-weight: 500;
+            color: #4a5568;
+            font-weight: 600;
         }
         .input-group input, .input-group textarea {
             width: 100%;
             padding: 12px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 2px solid #e2e8f0;
             border-radius: 8px;
-            color: white;
             font-size: 14px;
+            font-family: inherit;
+        }
+        .input-group input:focus, .input-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
         .input-group textarea {
-            min-height: 100px;
-            font-family: inherit;
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
             resize: vertical;
+            line-height: 1.6;
         }
         button {
             padding: 12px 24px;
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
             font-size: 16px;
             margin: 5px;
         }
@@ -109,105 +124,248 @@
             background: #f56565;
             color: white;
         }
-        button:hover {
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        button:active:not(:disabled) {
+            transform: scale(0.98);
         }
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
-            transform: none;
+        }
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .control-btn {
+            padding: 20px 10px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        .forward { 
+            grid-column: 2; 
+            grid-row: 1; 
+            background: #48bb78;
+            color: white;
+        }
+        .backward { 
+            grid-column: 2; 
+            grid-row: 3; 
+            background: #48bb78;
+            color: white;
+        }
+        .left { 
+            grid-column: 1; 
+            grid-row: 2; 
+            background: #4299e1;
+            color: white;
+        }
+        .right { 
+            grid-column: 3; 
+            grid-row: 2; 
+            background: #4299e1;
+            color: white;
+        }
+        .stop { 
+            grid-column: 2; 
+            grid-row: 2; 
+            background: #f56565;
+            color: white;
+            font-size: 18px;
         }
         #videoFeed {
             width: 100%;
             border-radius: 10px;
             background: #000;
             margin: 15px 0;
+            border: 3px solid #e2e8f0;
         }
-        #aiThoughts {
-            background: rgba(0, 0, 0, 0.5);
+        #aiLog {
+            background: #1a202c;
+            color: #cbd5e0;
             padding: 15px;
             border-radius: 10px;
-            min-height: 150px;
-            max-height: 300px;
+            min-height: 200px;
+            max-height: 350px;
             overflow-y: auto;
             font-family: 'Courier New', monospace;
-            border: 1px solid rgba(129, 230, 217, 0.3);
+            font-size: 13px;
+            line-height: 1.5;
         }
-        .thought-entry {
-            margin-bottom: 10px;
-            padding: 8px;
-            background: rgba(129, 230, 217, 0.1);
-            border-radius: 5px;
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 5px 8px;
+            border-left: 3px solid #81e6d9;
+            background: rgba(129, 230, 217, 0.05);
         }
-        .thought-time {
+        .log-time {
             color: #81e6d9;
             font-size: 0.85em;
         }
-        .thought-action {
+        .log-ai {
             color: #fbd38d;
-            font-weight: bold;
         }
-        .controls-grid {
+        .log-success {
+            color: #68d391;
+        }
+        .log-error {
+            color: #fc8181;
+        }
+        .log-info {
+            color: #90cdf4;
+        }
+        .motor-display {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
             margin: 20px 0;
         }
-        .control-btn {
-            padding: 15px;
-            background: rgba(66, 153, 225, 0.3);
-            border: 2px solid #4299e1;
-            color: white;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
+        .motor-card {
+            background: #f7fafc;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
         }
-        .control-btn:active {
-            transform: scale(0.95);
+        .motor-label {
+            font-size: 0.9em;
+            color: #718096;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .motor-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #2d3748;
+            font-family: 'Courier New', monospace;
+            margin: 10px 0;
+        }
+        .motor-bar-container {
+            width: 100%;
+            height: 40px;
+            background: #e2e8f0;
+            border-radius: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        .motor-bar-fill {
+            height: 100%;
+            transition: all 0.3s ease;
+            border-radius: 20px;
+        }
+        .motor-forward {
+            background: linear-gradient(90deg, #48bb78, #38a169);
+        }
+        .motor-backward {
+            background: linear-gradient(90deg, #f56565, #e53e3e);
+        }
+        .motor-zero-line {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: #4a5568;
+            opacity: 0.4;
         }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin: 15px 0;
+            gap: 12px;
+            margin: 20px 0;
         }
         .stat-box {
-            background: rgba(72, 187, 120, 0.1);
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid rgba(72, 187, 120, 0.3);
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
         }
         .stat-label {
             font-size: 0.85em;
-            color: #cbd5e0;
+            color: #718096;
+            margin-bottom: 5px;
         }
         .stat-value {
             font-size: 1.5em;
             font-weight: bold;
-            color: #81e6d9;
+            color: #2d3748;
+        }
+        .info-box {
+            background: #bee3f8;
+            border-left: 4px solid #4299e1;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
         }
         .warning-box {
-            background: rgba(237, 137, 54, 0.2);
-            border: 2px solid #ed8936;
+            background: #feebc8;
+            border-left: 4px solid #ed8936;
             padding: 15px;
-            border-radius: 8px;
+            margin: 15px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .slider-group {
             margin: 15px 0;
         }
+        .slider-group label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .slider-group input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #e2e8f0;
+            outline: none;
+        }
+        .slider-group input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
         @media (max-width: 1024px) {
-            .container {
+            .main-container {
                 grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 AI Autonomous Car Controller</h1>
+    <div class="main-container">
+        <h1>🤖 AI Autonomous Car - Precision DOM Control</h1>
         
         <!-- Configuration Panel -->
         <div class="panel">
-            <h2>⚙️ Configuration</h2>
+            <h2>⚙️ Setup & Configuration</h2>
             
             <div class="input-group">
                 <label>ESP32 IP Address:</label>
@@ -216,113 +374,208 @@
             
             <div class="input-group">
                 <label>Gemini API Key:</label>
-                <input type="text" id="geminiKey" placeholder="Your-Gemini-API-Key" value="">
+                <input type="password" id="geminiKey" placeholder="AIzaSy...">
             </div>
             
             <div class="input-group">
-                <label>Command Interval (seconds):</label>
-                <input type="number" id="commandInterval" value="2" min="1" max="10">
+                <label>AI Decision Interval:</label>
+                <input type="number" id="interval" value="2" min="1" max="10" step="0.5"> seconds
             </div>
             
-            <div class="input-group">
-                <label>AI System Prompt (How the AI should behave):</label>
-                <textarea id="systemPrompt">You are an autonomous car AI. You can see through a camera mounted on the car. Your mission is to navigate safely and avoid obstacles.
-
-Available commands:
-- FORWARD: Move the car forward
-- BACKWARD: Move the car backward
-- LEFT: Turn left
-- RIGHT: Turn right
-- STOP: Stop all motors
-
-You must respond ONLY with ONE of these commands based on what you see. Analyze the image, identify obstacles, paths, and decide the safest direction.
-
-Respond in this format:
-COMMAND: [ONE_COMMAND]
-REASON: [Brief explanation of your decision]
-
-Remember: You ARE the car. This is your body. Navigate carefully and make smart decisions every 2 seconds.</textarea>
-            </div>
-            
-            <button class="btn-primary" onclick="testESP()">🔌 Test ESP32 Connection</button>
+            <button class="btn-primary" onclick="testConnection()">🔌 Test ESP32</button>
             <button class="btn-success" onclick="startCamera()">📹 Start Camera</button>
             
-            <div style="margin-top: 20px;">
-                <span class="status-badge" id="espStatus">ESP32: Not Connected</span>
-                <span class="status-badge" id="cameraStatus">Camera: Off</span>
-                <span class="status-badge" id="aiStatus">AI: Idle</span>
+            <div style="margin-top: 15px;">
+                <span class="status-badge status-disconnected" id="espStatus">ESP32: Disconnected</span>
+                <span class="status-badge status-disconnected" id="camStatus">Camera: Off</span>
+                <span class="status-badge status-disconnected" id="aiStatus">AI: Idle</span>
+            </div>
+            
+            <div class="info-box" style="margin-top: 20px;">
+                <strong>💡 How it works:</strong><br>
+                1. AI sees through camera<br>
+                2. AI calculates precise motor speeds (-255 to +255)<br>
+                3. AI directly controls the car via DOM manipulation<br>
+                4. Commands sent to ESP32 every 2 seconds
             </div>
         </div>
         
-        <!-- Vision Panel -->
+        <!-- AI Vision Panel -->
         <div class="panel">
-            <h2>👁️ AI Vision Feed</h2>
+            <h2>👁️ AI Vision System</h2>
             <video id="videoFeed" autoplay playsinline></video>
             <canvas id="captureCanvas" style="display: none;"></canvas>
             
             <div style="text-align: center; margin: 15px 0;">
-                <button class="btn-success" id="autonomousBtn" onclick="toggleAutonomous()" disabled>
+                <button class="btn-success" id="autoBtn" onclick="toggleAuto()" disabled>
                     🤖 Start Autonomous Mode
                 </button>
                 <button class="btn-danger" onclick="emergencyStop()">
                     🛑 EMERGENCY STOP
                 </button>
             </div>
+            
+            <div class="input-group">
+                <label>AI System Prompt:</label>
+                <textarea id="aiPrompt">You are an autonomous car AI with PRECISION CONTROL.
+
+🎯 CONTROL: You control LEFT and RIGHT motors independently.
+- Range: -255 (full reverse) to +255 (full forward)
+- 0 = stopped
+
+📊 EXAMPLES:
+• Straight: LEFT=200, RIGHT=200
+• Slight right: LEFT=200, RIGHT=150
+• Sharp left: LEFT=150, RIGHT=200
+• Pivot turn: LEFT=200, RIGHT=-200
+• Slow back: LEFT=-100, RIGHT=-100
+
+🧠 MISSION: Analyze camera image, navigate safely.
+
+⚠️ RULES:
+- Low speeds (100-150) in tight spaces
+- High speeds (200-255) in open areas
+- Stop (0,0) if obstacles close
+- Smooth turns using differential speeds
+
+📝 RESPONSE FORMAT (exact):
+LEFT_MOTOR: [number -255 to 255]
+RIGHT_MOTOR: [number -255 to 255]
+REASON: [brief decision explanation]</textarea>
+            </div>
         </div>
         
-        <!-- AI Thoughts Panel -->
+        <!-- Motor Control Panel -->
         <div class="panel">
-            <h2>🧠 AI Decision Log</h2>
-            <div id="aiThoughts"></div>
-        </div>
-        
-        <!-- Manual Control Panel -->
-        <div class="panel">
-            <h2>🎮 Manual Override</h2>
-            <div class="warning-box">
-                ⚠️ Manual controls will pause autonomous mode
+            <h2>⚙️ Precision Motor Control</h2>
+            
+            <div class="motor-display">
+                <div class="motor-card">
+                    <div class="motor-label">LEFT MOTOR</div>
+                    <div class="motor-value" id="leftValue">0</div>
+                    <div class="motor-bar-container">
+                        <div class="motor-zero-line"></div>
+                        <div class="motor-bar-fill" id="leftBar"></div>
+                    </div>
+                </div>
+                
+                <div class="motor-card">
+                    <div class="motor-label">RIGHT MOTOR</div>
+                    <div class="motor-value" id="rightValue">0</div>
+                    <div class="motor-bar-container">
+                        <div class="motor-zero-line"></div>
+                        <div class="motor-bar-fill" id="rightBar"></div>
+                    </div>
+                </div>
             </div>
             
-            <div class="controls-grid">
-                <div></div>
-                <button class="control-btn" onclick="sendManualCommand('FORWARD')">↑<br>FORWARD</button>
-                <div></div>
-                <button class="control-btn" onclick="sendManualCommand('LEFT')">←<br>LEFT</button>
-                <button class="control-btn" onclick="sendManualCommand('STOP')">⏹<br>STOP</button>
-                <button class="control-btn" onclick="sendManualCommand('RIGHT')">→<br>RIGHT</button>
-                <div></div>
-                <button class="control-btn" onclick="sendManualCommand('BACKWARD')">↓<br>BACKWARD</button>
+            <div class="warning-box">
+                ⚠️ <strong>Manual Override:</strong> Use controls below (pauses AI)
             </div>
+            
+            <!-- Manual Sliders -->
+            <div class="slider-group">
+                <label>
+                    <span>Left Motor</span>
+                    <span id="leftSliderVal">0</span>
+                </label>
+                <input type="range" id="leftSlider" min="-255" max="255" value="0" 
+                       oninput="updateSliders()">
+            </div>
+            
+            <div class="slider-group">
+                <label>
+                    <span>Right Motor</span>
+                    <span id="rightSliderVal">0</span>
+                </label>
+                <input type="range" id="rightSlider" min="-255" max="255" value="0" 
+                       oninput="updateSliders()">
+            </div>
+            
+            <button class="btn-warning" onclick="applyManual()">Apply Manual Control</button>
+            <button class="btn-danger" onclick="resetMotors()">Reset (0, 0)</button>
+            
+            <!-- Quick Controls -->
+            <h3 style="margin: 20px 0 10px 0; color: #4a5568;">Quick Commands:</h3>
+            <div class="controls-grid">
+                <button class="control-btn forward" onclick="quickCommand('FORWARD')" id="btnForward">
+                    ↑<span>FORWARD</span>
+                </button>
+                <button class="control-btn backward" onclick="quickCommand('BACKWARD')" id="btnBackward">
+                    ↓<span>BACKWARD</span>
+                </button>
+                <button class="control-btn left" onclick="quickCommand('LEFT')" id="btnLeft">
+                    ←<span>LEFT</span>
+                </button>
+                <button class="control-btn right" onclick="quickCommand('RIGHT')" id="btnRight">
+                    →<span>RIGHT</span>
+                </button>
+                <button class="control-btn stop" onclick="quickCommand('STOP')" id="btnStop">
+                    ⏹<span>STOP</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- AI Decision Log -->
+        <div class="panel">
+            <h2>🧠 AI Decision Log</h2>
+            <div id="aiLog"></div>
             
             <div class="stats-grid">
                 <div class="stat-box">
                     <div class="stat-label">Commands Sent</div>
-                    <div class="stat-value" id="commandCount">0</div>
+                    <div class="stat-value" id="cmdCount">0</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Uptime</div>
                     <div class="stat-value" id="uptime">0s</div>
                 </div>
                 <div class="stat-box">
-                    <div class="stat-label">Last Command</div>
-                    <div class="stat-value" id="lastCommand">NONE</div>
+                    <div class="stat-label">Avg Speed</div>
+                    <div class="stat-value" id="avgSpeed">0</div>
                 </div>
                 <div class="stat-box">
                     <div class="stat-label">Mode</div>
-                    <div class="stat-value" id="currentMode">MANUAL</div>
+                    <div class="stat-value" id="mode">MANUAL</div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        let espIpAddress = '';
-        let geminiApiKey = '';
-        let autonomousMode = false;
-        let autonomousInterval = null;
+        // Global state
+        let espIp = '';
+        let geminiKey = '';
+        let autoMode = false;
+        let autoInterval = null;
         let videoStream = null;
-        let commandCount = 0;
+        let cmdCount = 0;
         let startTime = Date.now();
+        let currentLeft = 0;
+        let currentRight = 0;
+        let speedHistory = [];
+        
+        // DOM element references (AI can manipulate these)
+        const dom = {
+            leftValue: document.getElementById('leftValue'),
+            rightValue: document.getElementById('rightValue'),
+            leftBar: document.getElementById('leftBar'),
+            rightBar: document.getElementById('rightBar'),
+            aiLog: document.getElementById('aiLog'),
+            espStatus: document.getElementById('espStatus'),
+            camStatus: document.getElementById('camStatus'),
+            aiStatus: document.getElementById('aiStatus'),
+            mode: document.getElementById('mode'),
+            cmdCount: document.getElementById('cmdCount'),
+            avgSpeed: document.getElementById('avgSpeed'),
+            buttons: {
+                forward: document.getElementById('btnForward'),
+                backward: document.getElementById('btnBackward'),
+                left: document.getElementById('btnLeft'),
+                right: document.getElementById('btnRight'),
+                stop: document.getElementById('btnStop')
+            }
+        };
         
         // Update uptime
         setInterval(() => {
@@ -330,25 +583,59 @@ Remember: You ARE the car. This is your body. Navigate carefully and make smart 
             document.getElementById('uptime').textContent = uptime + 's';
         }, 1000);
         
+        // Logging function
+        function log(message, type = 'info') {
+            const logDiv = dom.aiLog;
+            const timestamp = new Date().toLocaleTimeString();
+            const typeClass = type === 'error' ? 'log-error' : type === 'success' ? 'log-success' : type === 'ai' ? 'log-ai' : 'log-info';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.innerHTML = `<span class="log-time">[${timestamp}]</span> <span class="${typeClass}">${message}</span>`;
+            
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            // Keep only last 50 entries
+            while (logDiv.children.length > 50) {
+                logDiv.removeChild(logDiv.firstChild);
+            }
+        }
+        
         // Test ESP32 connection
-        async function testESP() {
-            espIpAddress = document.getElementById('espIp').value;
+        async function testConnection() {
+            espIp = document.getElementById('espIp').value;
+            
+            if (!espIp) {
+                alert('Please enter ESP32 IP address!');
+                return;
+            }
+            
+            log('Testing connection to ' + espIp, 'info');
             
             try {
-                const response = await fetch(`http://${espIpAddress}/status`);
-                const data = await response.json();
+                const response = await fetch(`http://${espIp}/status`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
                 
-                document.getElementById('espStatus').textContent = '✅ ESP32: Connected';
-                document.getElementById('espStatus').className = 'status-badge status-connected';
-                
-                logThought('ESP32 connected successfully!', 'SUCCESS');
-                alert('✅ ESP32 connected!\n' + JSON.stringify(data, null, 2));
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    dom.espStatus.textContent = '✅ ESP32: Connected';
+                    dom.espStatus.className = 'status-badge status-connected';
+                    
+                    log(`ESP32 connected! Device: ${data.device || 'ESP32'}`, 'success');
+                    log(`Signal: ${data.rssi || 'N/A'} dBm`, 'info');
+                } else {
+                    throw new Error('HTTP ' + response.status);
+                }
             } catch (error) {
-                document.getElementById('espStatus').textContent = '❌ ESP32: Failed';
-                document.getElementById('espStatus').className = 'status-badge status-disconnected';
+                dom.espStatus.textContent = '❌ ESP32: Failed';
+                dom.espStatus.className = 'status-badge status-disconnected';
                 
-                logThought('Failed to connect to ESP32', 'ERROR');
-                alert('❌ Failed to connect to ESP32!\n\nMake sure:\n1. ESP32 is powered on\n2. IP address is correct\n3. You are on the same WiFi network');
+                log('ESP32 connection failed: ' + error.message, 'error');
+                alert('Connection failed!\n\nCheck:\n1. ESP32 powered on\n2. IP address correct\n3. Same WiFi network\n4. ESP32 web server running');
             }
         }
         
@@ -358,21 +645,21 @@ Remember: You ARE the car. This is your body. Navigate carefully and make smart 
                 videoStream = await navigator.mediaDevices.getUserMedia({ 
                     video: { 
                         width: { ideal: 640 },
-                        height: { ideal: 480 }
+                        height: { ideal: 480 },
+                        facingMode: 'environment'
                     } 
                 });
                 
-                const video = document.getElementById('videoFeed');
-                video.srcObject = videoStream;
+                document.getElementById('videoFeed').srcObject = videoStream;
                 
-                document.getElementById('cameraStatus').textContent = '✅ Camera: Active';
-                document.getElementById('cameraStatus').className = 'status-badge status-connected';
-                document.getElementById('autonomousBtn').disabled = false;
+                dom.camStatus.textContent = '✅ Camera: Active';
+                dom.camStatus.className = 'status-badge status-connected';
+                document.getElementById('autoBtn').disabled = false;
                 
-                logThought('Camera started - AI can now see!', 'SUCCESS');
+                log('Camera initialized - AI can now see!', 'success');
             } catch (error) {
-                alert('❌ Failed to access camera!\n\nPlease allow camera permissions.');
-                logThought('Camera access denied', 'ERROR');
+                log('Camera access denied: ' + error.message, 'error');
+                alert('Camera failed! Please allow camera permissions in your browser.');
             }
         }
         
@@ -380,63 +667,145 @@ Remember: You ARE the car. This is your body. Navigate carefully and make smart 
         function captureFrame() {
             const video = document.getElementById('videoFeed');
             const canvas = document.getElementById('captureCanvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
             
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0);
             
-            return canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+            return canvas.toDataURL('image/jpeg', 0.7).split(',')[1];
         }
         
         // Send command to ESP32
         async function sendCommand(command) {
-            if (!espIpAddress) {
-                alert('Please test ESP32 connection first!');
+            if (!espIp) {
+                alert('Test ESP32 connection first!');
                 return false;
             }
             
+            // Visual feedback - flash the button
+            const btnKey = command.toLowerCase();
+            if (dom.buttons[btnKey]) {
+                const btn = dom.buttons[btnKey];
+                const origOpacity = btn.style.opacity;
+                btn.style.opacity = '0.6';
+                setTimeout(() => btn.style.opacity = origOpacity || '1', 200);
+            }
+            
             try {
-                const response = await fetch(`http://${espIpAddress}/control`, {
+                const response = await fetch(`http://${espIp}/control`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
+                    mode: 'cors',
                     body: JSON.stringify({ command: command })
                 });
                 
                 if (response.ok) {
-                    commandCount++;
-                    document.getElementById('commandCount').textContent = commandCount;
-                    document.getElementById('lastCommand').textContent = command;
+                    cmdCount++;
+                    dom.cmdCount.textContent = cmdCount;
                     return true;
+                } else {
+                    log(`Command failed: HTTP ${response.status}`, 'error');
+                    return false;
                 }
-                return false;
             } catch (error) {
-                logThought('Failed to send command to ESP32', 'ERROR');
+                log('Failed to send command: ' + error.message, 'error');
                 return false;
             }
         }
         
-        // Ask Gemini AI for decision
-        async function askGeminiForDecision() {
-            geminiApiKey = document.getElementById('geminiKey').value;
+        // Update motor display (DOM manipulation)
+        function updateMotorDisplay(left, right) {
+            currentLeft = left;
+            currentRight = right;
             
-            if (!geminiApiKey) {
-                alert('Please enter your Gemini API key!');
-                stopAutonomous();
+            // Update text values
+            dom.leftValue.textContent = left;
+            dom.rightValue.textContent = right;
+            
+            // Update visual bars
+            updateBar('leftBar', left);
+            updateBar('rightBar', right);
+            
+            // Calculate average speed
+            const avgSpeed = Math.round((Math.abs(left) + Math.abs(right)) / 2);
+            speedHistory.push(avgSpeed);
+            if (speedHistory.length > 10) speedHistory.shift();
+            const avg = Math.round(speedHistory.reduce((a,b) => a+b, 0) / speedHistory.length);
+            dom.avgSpeed.textContent = avg;
+        }
+        
+        function updateBar(barId, value) {
+            const bar = document.getElementById(barId);
+            const percent = Math.abs(value) / 255 * 50;
+            
+            if (value > 0) {
+                bar.style.width = percent + '%';
+                bar.style.marginLeft = '50%';
+                bar.className = 'motor-bar-fill motor-forward';
+            } else if (value < 0) {
+                bar.style.width = percent + '%';
+                bar.style.marginLeft = (50 - percent) + '%';
+                bar.className = 'motor-bar-fill motor-backward';
+            } else {
+                bar.style.width = '0%';
+                bar.style.marginLeft = '50%';
+            }
+        }
+        
+        // Convert motor values to ESP32 command
+        function motorsToCommand(left, right) {
+            // Both forward
+            if (left > 50 && right > 50) {
+                const diff = Math.abs(left - right);
+                if (diff < 50) return 'FORWARD';
+                return left > right ? 'LEFT' : 'RIGHT';
+            }
+            
+            // Both backward
+            if (left < -50 && right < -50) {
+                return 'BACKWARD';
+            }
+            
+            // Pivot turns
+            if (left > 50 && right < -50) return 'RIGHT';
+            if (right > 50 && left < -50) return 'LEFT';
+            
+            // One motor dominant
+            if (Math.abs(left) > 50 || Math.abs(right) > 50) {
+                const avg = (left + right) / 2;
+                if (avg > 30) return 'FORWARD';
+                if (avg < -30) return 'BACKWARD';
+                return left > right ? 'LEFT' : 'RIGHT';
+            }
+            
+            // Stopped
+            return 'STOP';
+        }
+        
+        // AI decision making with Gemini
+        async function aiDecision() {
+            geminiKey = document.getElementById('geminiKey').value;
+            
+            if (!geminiKey) {
+                alert('Enter Gemini API key first!');
+                stopAuto();
                 return;
             }
             
             const imageBase64 = captureFrame();
-            const systemPrompt = document.getElementById('systemPrompt').value;
+            const prompt = document.getElementById('aiPrompt').value;
+            
+            log('AI analyzing image...', 'ai');
             
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiKey}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         contents: [{
                             parts: [
-                                { text: systemPrompt },
+                                { text: prompt },
                                 { 
                                     inline_data: {
                                         mime_type: "image/jpeg",
@@ -448,146 +817,213 @@ Remember: You ARE the car. This is your body. Navigate carefully and make smart 
                     })
                 });
                 
+                if (!response.ok) {
+                    throw new Error(`Gemini API error: ${response.status}`);
+                }
+                
                 const data = await response.json();
-                const aiResponse = data.candidates[0].content.parts[0].text;
+                const aiText = data.candidates[0].content.parts[0].text;
                 
-                // Parse command from AI response
-                const commandMatch = aiResponse.match(/COMMAND:\s*(\w+)/i);
-                const reasonMatch = aiResponse.match(/REASON:\s*(.+)/i);
+                // Parse AI response
+                const leftMatch = aiText.match(/LEFT_MOTOR:\s*(-?\d+)/i);
+                const rightMatch = aiText.match(/RIGHT_MOTOR:\s*(-?\d+)/i);
+                const reasonMatch = aiText.match(/REASON:\s*(.+)/i);
                 
-                if (commandMatch) {
-                    const command = commandMatch[1].toUpperCase();
-                    const reason = reasonMatch ? reasonMatch[1] : 'No reason provided';
+                if (leftMatch && rightMatch) {
+                    const left = Math.max(-255, Math.min(255, parseInt(leftMatch[1])));
+                    const right = Math.max(-255, Math.min(255, parseInt(rightMatch[1])));
+                    const reason = reasonMatch ? reasonMatch[1].trim() : 'No reason provided';
                     
-                    logThought(`AI Decision: ${command} - ${reason}`, 'AI');
+                    log(`AI Decision: L=${left}, R=${right}`, 'ai');
+                    log(`Reason: ${reason}`, 'info');
                     
+                    // Update DOM display
+                    updateMotorDisplay(left, right);
+                    
+                    // Convert to command and send to ESP32
+                    const command = motorsToCommand(left, right);
                     const success = await sendCommand(command);
+                    
                     if (success) {
-                        logThought(`Command ${command} executed successfully`, 'SUCCESS');
+                        log(`✓ Sent: ${command} (L=${left}, R=${right})`, 'success');
+                    } else {
+                        log(`✗ Failed to send command`, 'error');
                     }
                 } else {
-                    logThought('AI response format error', 'ERROR');
+                    log('AI response format error - could not parse motor values', 'error');
+                    log('AI said: ' + aiText.substring(0, 100), 'info');
                 }
                 
             } catch (error) {
-                logThought('Gemini API error: ' + error.message, 'ERROR');
+                log('Gemini API error: ' + error.message, 'error');
+                if (error.message.includes('401') || error.message.includes('403')) {
+                    log('Check your API key!', 'error');
+                    stopAuto();
+                }
             }
         }
         
         // Toggle autonomous mode
-        function toggleAutonomous() {
-            if (!autonomousMode) {
-                startAutonomous();
+        function toggleAuto() {
+            if (!autoMode) {
+                startAuto();
             } else {
-                stopAutonomous();
+                stopAuto();
             }
         }
         
-        function startAutonomous() {
-            autonomousMode = true;
-            const interval = parseInt(document.getElementById('commandInterval').value) * 1000;
+        function startAuto() {
+            const interval = parseFloat(document.getElementById('interval').value) * 1000;
             
-            document.getElementById('autonomousBtn').textContent = '⏸️ Pause Autonomous Mode';
-            document.getElementById('autonomousBtn').className = 'btn-danger';
-            document.getElementById('aiStatus').textContent = '🤖 AI: ACTIVE';
-            document.getElementById('aiStatus').className = 'status-badge status-active';
-            document.getElementById('currentMode').textContent = 'AUTO';
+            if (!geminiKey) {
+                geminiKey = document.getElementById('geminiKey').value;
+                if (!geminiKey) {
+                    alert('Please enter your Gemini API key first!');
+                    return;
+                }
+            }
             
-            logThought('🚗 Autonomous mode STARTED - AI is now in control!', 'SUCCESS');
+            if (!espIp) {
+                alert('Please test ESP32 connection first!');
+                return;
+            }
+            
+            autoMode = true;
+            
+            document.getElementById('autoBtn').textContent = '⏸️ Pause Autonomous';
+            document.getElementById('autoBtn').className = 'btn-danger';
+            dom.aiStatus.textContent = '🤖 AI: ACTIVE';
+            dom.aiStatus.className = 'status-badge status-active';
+            dom.mode.textContent = 'AUTO';
+            
+            log('🚗 AUTONOMOUS MODE STARTED!', 'success');
+            log(`Decision interval: ${interval/1000}s`, 'info');
             
             // First decision immediately
-            askGeminiForDecision();
+            aiDecision();
             
-            // Then every interval
-            autonomousInterval = setInterval(askGeminiForDecision, interval);
+            // Then repeat at interval
+            autoInterval = setInterval(aiDecision, interval);
         }
         
-        function stopAutonomous() {
-            autonomousMode = false;
-            clearInterval(autonomousInterval);
+        function stopAuto() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+            }
             
-            document.getElementById('autonomousBtn').textContent = '🤖 Start Autonomous Mode';
-            document.getElementById('autonomousBtn').className = 'btn-success';
-            document.getElementById('aiStatus').textContent = 'AI: Idle';
-            document.getElementById('aiStatus').className = 'status-badge status-disconnected';
-            document.getElementById('currentMode').textContent = 'MANUAL';
+            autoMode = false;
             
+            document.getElementById('autoBtn').textContent = '🤖 Start Autonomous Mode';
+            document.getElementById('autoBtn').className = 'btn-success';
+            dom.aiStatus.textContent = 'AI: Idle';
+            dom.aiStatus.className = 'status-badge status-disconnected';
+            dom.mode.textContent = 'MANUAL';
+            
+            log('⏸️ Autonomous mode stopped', 'info');
+            
+            // Stop the car
             sendCommand('STOP');
-            logThought('Autonomous mode STOPPED', 'INFO');
+            updateMotorDisplay(0, 0);
         }
         
         // Emergency stop
-        async function emergencyStop() {
-            stopAutonomous();
-            await sendCommand('STOP');
-            logThought('🚨 EMERGENCY STOP activated!', 'ERROR');
+        function emergencyStop() {
+            log('🛑 EMERGENCY STOP!', 'error');
+            
+            stopAuto();
+            sendCommand('STOP');
+            updateMotorDisplay(0, 0);
+            
+            // Reset sliders
+            document.getElementById('leftSlider').value = 0;
+            document.getElementById('rightSlider').value = 0;
+            updateSliders();
         }
         
-        // Manual command (pauses autonomous)
-        async function sendManualCommand(command) {
-            if (autonomousMode) {
-                stopAutonomous();
-                logThought('Autonomous mode paused for manual control', 'INFO');
+        // Update slider values display
+        function updateSliders() {
+            const leftVal = document.getElementById('leftSlider').value;
+            const rightVal = document.getElementById('rightSlider').value;
+            
+            document.getElementById('leftSliderVal').textContent = leftVal;
+            document.getElementById('rightSliderVal').textContent = rightVal;
+        }
+        
+        // Apply manual control from sliders
+        function applyManual() {
+            if (autoMode) {
+                stopAuto();
             }
             
-            await sendCommand(command);
-            logThought(`Manual command: ${command}`, 'INFO');
+            const left = parseInt(document.getElementById('leftSlider').value);
+            const right = parseInt(document.getElementById('rightSlider').value);
+            
+            updateMotorDisplay(left, right);
+            
+            const command = motorsToCommand(left, right);
+            sendCommand(command);
+            
+            log(`Manual: ${command} (L=${left}, R=${right})`, 'info');
         }
         
-        // Log AI thoughts
-        function logThought(message, type = 'INFO') {
-            const thoughtsDiv = document.getElementById('aiThoughts');
-            const timestamp = new Date().toLocaleTimeString();
+        // Reset motors to zero
+        function resetMotors() {
+            document.getElementById('leftSlider').value = 0;
+            document.getElementById('rightSlider').value = 0;
+            updateSliders();
             
-            const colors = {
-                'AI': '#fbd38d',
-                'SUCCESS': '#48bb78',
-                'ERROR': '#f56565',
-                'INFO': '#81e6d9'
-            };
+            updateMotorDisplay(0, 0);
+            sendCommand('STOP');
             
-            const entry = document.createElement('div');
-            entry.className = 'thought-entry';
-            entry.innerHTML = `
-                <div class="thought-time">[${timestamp}]</div>
-                <div style="color: ${colors[type] || '#cbd5e0'}">${message}</div>
-            `;
-            
-            thoughtsDiv.appendChild(entry);
-            thoughtsDiv.scrollTop = thoughtsDiv.scrollHeight;
+            log('Motors reset to 0', 'info');
         }
         
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (autonomousMode) return;
+        // Quick command buttons
+        function quickCommand(command) {
+            if (autoMode) {
+                stopAuto();
+                log('Auto mode paused for manual control', 'info');
+            }
             
-            switch(e.key) {
-                case 'ArrowUp':
-                    e.preventDefault();
-                    sendManualCommand('FORWARD');
+            let left = 0, right = 0;
+            
+            switch(command) {
+                case 'FORWARD':
+                    left = 200;
+                    right = 200;
                     break;
-                case 'ArrowDown':
-                    e.preventDefault();
-                    sendManualCommand('BACKWARD');
+                case 'BACKWARD':
+                    left = -200;
+                    right = -200;
                     break;
-                case 'ArrowLeft':
-                    e.preventDefault();
-                    sendManualCommand('LEFT');
+                case 'LEFT':
+                    left = -150;
+                    right = 150;
                     break;
-                case 'ArrowRight':
-                    e.preventDefault();
-                    sendManualCommand('RIGHT');
+                case 'RIGHT':
+                    left = 150;
+                    right = -150;
                     break;
-                case ' ':
-                    e.preventDefault();
-                    sendManualCommand('STOP');
+                case 'STOP':
+                    left = 0;
+                    right = 0;
                     break;
             }
-        });
+            
+            updateMotorDisplay(left, right);
+            sendCommand(command);
+            
+            log(`Quick command: ${command}`, 'info');
+        }
         
-        // Initial log
-        logThought('AI Autonomous Car Controller initialized', 'SUCCESS');
-        logThought('Setup: 1) Enter ESP32 IP 2) Test connection 3) Add Gemini API key 4) Start camera 5) Start autonomous mode', 'INFO');
+        // Initialize
+        log('🤖 AI Autonomous Car System initialized', 'success');
+        log('Setup steps:', 'info');
+        log('1. Enter ESP32 IP and test connection', 'info');
+        log('2. Enter Gemini API key', 'info');
+        log('3. Start camera', 'info');
+        log('4. Click "Start Autonomous Mode"', 'info');
     </script>
 </body>
 </html>
