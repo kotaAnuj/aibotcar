@@ -360,27 +360,19 @@
                 return;
             }
 
-            try {
-                // Test ESP32
-                const response = await fetch(`${carUrl}/status`);
-                if (!response.ok) throw new Error('ESP32 not responding');
-
-                // Load iframe
-                document.getElementById('carFrame').src = carUrl;
-
+            // Simply load the iframe - it will handle its own connection
+            document.getElementById('carFrame').src = carUrl;
+            
+            // Wait a moment for iframe to load
+            setTimeout(() => {
                 isConnected = true;
-                updateStatus('Connected & Ready', true);
-                log('✅ Connection successful', 'success');
+                updateStatus('ESP32 Interface Loaded', true);
+                log('✅ ESP32 interface embedded successfully', 'success');
 
                 if (cameraReady) {
                     document.getElementById('startAiBtn').disabled = false;
                 }
-            } catch (error) {
-                isConnected = false;
-                updateStatus('Connection Failed', false);
-                log('❌ Connection failed: ' + error.message, 'error');
-                alert('Cannot connect to ESP32. Check URL and network.');
-            }
+            }, 2000);
         }
 
         // Update status
@@ -486,27 +478,60 @@ Response format: Just the number, nothing else.`;
             }
         }
 
-        // Send command to car
+        // Send command to car via iframe's buttons
         async function sendCommand(cmd) {
             if (!isConnected) return false;
 
             try {
-                const response = await fetch(`${carUrl}/control`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: COMMANDS[cmd] })
-                });
-
-                if (response.ok) {
+                // Get the iframe
+                const iframe = document.getElementById('carFrame');
+                const iframeWindow = iframe.contentWindow;
+                
+                // Call the sendCommand function that exists in the ESP32 interface
+                // The original ESP32 page has a global sendCommand function
+                if (iframeWindow && iframeWindow.sendCommand) {
+                    iframeWindow.sendCommand(COMMANDS[cmd]);
                     stats.commands++;
                     document.getElementById('commands').textContent = stats.commands;
                     commandHistory.push(cmd);
                     if (commandHistory.length > 20) commandHistory.shift();
                     return true;
+                } else {
+                    // Fallback: directly send HTTP request
+                    const response = await fetch(`${carUrl}/control`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: COMMANDS[cmd] })
+                    });
+
+                    if (response.ok) {
+                        stats.commands++;
+                        document.getElementById('commands').textContent = stats.commands;
+                        commandHistory.push(cmd);
+                        if (commandHistory.length > 20) commandHistory.shift();
+                        return true;
+                    }
                 }
                 return false;
             } catch (error) {
                 log('❌ Command failed: ' + error.message, 'error');
+                // Try direct HTTP as fallback
+                try {
+                    const response = await fetch(`${carUrl}/control`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ command: COMMANDS[cmd] })
+                    });
+                    if (response.ok) {
+                        stats.commands++;
+                        document.getElementById('commands').textContent = stats.commands;
+                        commandHistory.push(cmd);
+                        if (commandHistory.length > 20) commandHistory.shift();
+                        return true;
+                    }
+                } catch (e) {
+                    log('❌ All command methods failed', 'error');
+                }
                 return false;
             }
         }
