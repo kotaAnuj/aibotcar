@@ -3,329 +3,375 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🤖 PRODUCTION AI Car - Person Following</title>
+    <title>AI Car - Precision Control</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #fff; 
-            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #0f0; 
             padding: 10px;
+            overflow-x: hidden;
         }
-        
-        .container { 
-            max-width: 500px; 
-            margin: 0 auto; 
+        .container { max-width: 600px; margin: 0 auto; }
+        .panel { 
+            background: rgba(0, 255, 0, 0.05);
+            border: 2px solid #0f0;
+            padding: 15px; 
+            margin: 10px 0; 
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
         }
-        
-        header { 
-            text-align: center; 
-            margin-bottom: 20px; 
-            padding: 20px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 15px;
-            backdrop-filter: blur(10px);
-        }
-        
         h1 { 
-            font-size: 1.8em; 
+            text-align: center;
+            color: #0ff;
+            font-size: 1.8em;
+            text-shadow: 0 0 10px #0ff;
+            margin-bottom: 10px;
+        }
+        h2 { 
+            color: #0f0; 
             margin-bottom: 10px; 
-            background: linear-gradient(45deg, #00ff88, #00ccff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 1.2em;
+            border-bottom: 1px solid #0f0;
+            padding-bottom: 5px;
         }
-
-        .panel {
-            background: rgba(255,255,255,0.1);
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            backdrop-filter: blur(10px);
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            background: #0a0a0a;
+            border: 2px solid #0f0;
+            color: #0f0; 
+            border-radius: 5px;
+            margin: 5px 0;
+            font-family: monospace;
+            font-size: 1em;
         }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #00ccff;
-        }
-        
-        input {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.1);
-            color: white;
-            font-size: 16px;
-            border: 2px solid transparent;
-        }
-        
         input:focus {
             outline: none;
-            border-color: #00ff88;
+            border-color: #0ff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         }
-        
-        button {
-            background: linear-gradient(45deg, #00ff88, #00ccff);
-            color: #1a1a2e;
-            border: none;
-            padding: 15px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
+        button { 
+            width: 100%; 
+            padding: 14px; 
+            background: linear-gradient(135deg, #0a0 0%, #0f0 100%);
+            color: #000; 
+            border: none; 
+            border-radius: 5px; 
             cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
             margin: 5px 0;
-        }
-        
-        button:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,255,136,0.3);
-        }
-        
-        button:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .stop-btn {
-            background: linear-gradient(45deg, #ff416c, #ff4b2b);
-        }
-
-        #videoContainer {
-            position: relative;
-            width: 100%;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            margin-bottom: 15px;
-        }
-        
-        video, canvas {
-            width: 100%;
-            display: block;
-        }
-        
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-
-        .metrics {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        
-        .metric {
-            background: rgba(255,255,255,0.05);
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .metric-value {
-            font-size: 1.5em;
+            font-size: 1em;
             font-weight: bold;
-            margin: 5px 0;
+            font-family: monospace;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
         }
-        
-        .metric.drive .metric-value { color: #00ff88; }
-        .metric.steer .metric-value { color: #00ccff; }
-        .metric.distance .metric-value { color: #ffcc00; }
-        .metric.fps .metric-value { color: #ff6680; }
-
-        .mode-selector {
+        button:hover:not(:disabled) { 
+            background: linear-gradient(135deg, #0f0 0%, #0ff 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 255, 0, 0.5);
+        }
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+        .stop-btn { 
+            background: linear-gradient(135deg, #a00 0%, #f00 100%);
+            color: #fff;
+        }
+        .stop-btn:hover { 
+            background: linear-gradient(135deg, #f00 0%, #f80 100%);
+            box-shadow: 0 5px 20px rgba(255, 0, 0, 0.5);
+        }
+        #videoContainer { 
+            position: relative; 
+            background: #000; 
+            border-radius: 10px; 
+            overflow: hidden;
+            border: 2px solid #0f0;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
+        }
+        video, canvas { width: 100%; display: block; }
+        canvas { position: absolute; top: 0; left: 0; }
+        .metrics { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .metric { 
+            background: rgba(0, 0, 0, 0.5);
+            padding: 12px; 
+            text-align: center; 
+            border-radius: 8px;
+            border: 1px solid #0f0;
+        }
+        .metric-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        .metric-value { 
+            font-size: 2em; 
+            font-weight: bold;
+            text-shadow: 0 0 10px currentColor;
+        }
+        .drive-val { color: #0f0; }
+        .steer-val { color: #0ff; }
+        .person-val { color: #ff0; }
+        .fps-val { color: #f0f; }
+        .log { 
+            background: #000; 
+            padding: 10px; 
+            height: 120px; 
+            overflow-y: auto; 
+            font-family: monospace; 
+            font-size: 0.85em;
+            border-radius: 5px;
+            border: 1px solid #0f0;
+        }
+        .log::-webkit-scrollbar { width: 8px; }
+        .log::-webkit-scrollbar-track { background: #0a0a0a; }
+        .log::-webkit-scrollbar-thumb { background: #0f0; border-radius: 4px; }
+        .status { 
+            display: inline-block; 
+            width: 12px; 
+            height: 12px; 
+            border-radius: 50%; 
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .on { background: #0f0; box-shadow: 0 0 10px #0f0; }
+        .off { background: #f00; box-shadow: 0 0 10px #f00; }
+        .hidden { display: none; }
+        .control-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 15px;
         }
-        
         .mode-btn {
-            background: rgba(255,255,255,0.1);
             padding: 12px;
-            border-radius: 8px;
-            text-align: center;
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid #0f0;
+            color: #0f0;
+            border-radius: 5px;
             cursor: pointer;
             transition: all 0.3s ease;
-            border: 2px solid transparent;
+            text-align: center;
+            font-weight: bold;
         }
-        
+        .mode-btn:hover {
+            background: rgba(0, 255, 0, 0.2);
+            transform: scale(1.05);
+        }
         .mode-btn.active {
-            border-color: #00ff88;
-            background: rgba(0,255,136,0.2);
+            background: rgba(0, 255, 0, 0.3);
+            border-color: #0ff;
+            color: #0ff;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
         }
-
-        .log {
-            background: rgba(0,0,0,0.5);
-            padding: 15px;
-            border-radius: 10px;
-            height: 120px;
-            overflow-y: auto;
-            font-family: monospace;
-            font-size: 0.9em;
+        .debug-panel {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            border: 1px solid #0f0;
         }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
+        .debug-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(0, 255, 0, 0.2);
         }
-        
-        .status-connected { background: #00ff88; }
-        .status-disconnected { background: #ff416c; }
-        .status-camera { background: #00ccff; }
-        
-        .hidden { display: none; }
-
-        .debug-info {
-            font-size: 0.8em;
-            opacity: 0.7;
-            margin-top: 5px;
-        }
+        .debug-label { color: #0ff; }
+        .debug-value { color: #ff0; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🤖 PRODUCTION AI Car</h1>
-            <p>Advanced Person Following System</p>
-        </header>
+        <h1>🤖 AI CAR PRECISION CONTROL</h1>
 
         <!-- Connection Panel -->
         <div class="panel">
-            <h2>🔗 ESP32 Connection</h2>
-            <div class="input-group">
-                <label for="esp32Ip">ESP32 IP Address:</label>
-                <input type="text" id="esp32Ip" placeholder="192.168.1.100">
-            </div>
-            <button id="connectBtn" onclick="connectToESP32()">Connect to Car</button>
-            <div id="connectionStatus">
-                <span class="status-indicator status-disconnected"></span>
-                Disconnected
+            <h2>🔗 ESP32 CONNECTION</h2>
+            <input type="text" id="esp32Ip" placeholder="Enter ESP32 IP (e.g., 192.168.1.100)">
+            <button onclick="connect()">CONNECT TO CAR</button>
+            <div style="margin-top: 10px;">
+                <span class="status off" id="connStatus"></span>
+                <span id="connText">Disconnected</span>
             </div>
         </div>
 
-        <!-- Camera Section -->
+        <!-- Camera Panel -->
         <div class="panel">
-            <h2>📷 Camera Control</h2>
-            <button id="startCameraBtn" onclick="startCamera()">Start Camera & AI</button>
+            <h2>📷 CAMERA & AI VISION</h2>
+            <button onclick="startCamera()">START CAMERA & AI</button>
             <div id="videoContainer" class="hidden">
                 <video id="video" autoplay playsinline muted></video>
                 <canvas id="canvas"></canvas>
             </div>
-            <div id="cameraStatus">
-                <span class="status-indicator status-disconnected"></span>
-                Camera not started
+            <div style="margin-top: 10px;">
+                <span class="status off" id="camStatus"></span>
+                <span id="camText">Camera inactive</span>
             </div>
         </div>
 
         <!-- Control Panel -->
         <div class="panel">
-            <h2>🎮 Control Modes</h2>
-            <div class="mode-selector">
-                <div class="mode-btn active" onclick="setMode('follow')">Follow Person</div>
-                <div class="mode-btn" onclick="setMode('patrol')">Patrol Mode</div>
-                <div class="mode-btn" onclick="setMode('avoid')">Avoid Obstacles</div>
-                <div class="mode-btn" onclick="setMode('stop')">Stop</div>
+            <h2>🎮 CONTROL MODES</h2>
+            <div class="control-grid">
+                <div class="mode-btn" id="modeFollow" onclick="setMode('follow')">
+                    👤 FOLLOW PERSON
+                </div>
+                <div class="mode-btn" id="modePatrol" onclick="setMode('patrol')">
+                    🔄 PATROL
+                </div>
+                <div class="mode-btn active" id="modeStop" onclick="setMode('stop')">
+                    ⏹️ STOP
+                </div>
+                <div class="mode-btn" id="modeScan" onclick="setMode('scan')">
+                    🔍 SCAN
+                </div>
             </div>
-            <button class="stop-btn" onclick="emergencyStop()">🛑 EMERGENCY STOP</button>
+            <button class="stop-btn" onclick="emergency()" style="margin-top: 10px;">
+                🚨 EMERGENCY STOP
+            </button>
         </div>
 
         <!-- Status Panel -->
         <div class="panel">
-            <h2>📊 Real-time Status</h2>
+            <h2>📊 REAL-TIME TELEMETRY</h2>
             <div class="metrics">
-                <div class="metric drive">
-                    <div>Drive Power</div>
-                    <div class="metric-value" id="driveValue">0%</div>
-                    <div class="debug-info" id="driveDebug"></div>
+                <div class="metric">
+                    <div class="metric-label">DRIVE POWER</div>
+                    <div class="metric-value drive-val" id="driveVal">0</div>
                 </div>
-                <div class="metric steer">
-                    <div>Steering</div>
-                    <div class="metric-value" id="steerValue">0%</div>
-                    <div class="debug-info" id="steerDebug"></div>
+                <div class="metric">
+                    <div class="metric-label">STEERING</div>
+                    <div class="metric-value steer-val" id="steerVal">0</div>
                 </div>
-                <div class="metric distance">
-                    <div>Person Distance</div>
-                    <div class="metric-value" id="distanceValue">-</div>
-                    <div class="debug-info" id="distanceDebug"></div>
+                <div class="metric">
+                    <div class="metric-label">PERSON SIZE</div>
+                    <div class="metric-value person-val" id="personVal">-</div>
                 </div>
-                <div class="metric fps">
-                    <div>FPS</div>
-                    <div class="metric-value" id="fpsValue">0</div>
-                    <div class="debug-info" id="fpsDebug">AI Processing</div>
+                <div class="metric">
+                    <div class="metric-label">FPS</div>
+                    <div class="metric-value fps-val" id="fpsVal">0</div>
                 </div>
             </div>
         </div>
 
-        <!-- AI Info -->
+        <!-- Debug Panel -->
         <div class="panel">
-            <h2>🧠 AI Tracking Info</h2>
-            <div id="trackingInfo">
-                <div>Waiting for person detection...</div>
-                <div class="debug-info" id="trackingDebug"></div>
+            <h2>🔬 TRACKING DEBUG</h2>
+            <div class="debug-panel">
+                <div class="debug-row">
+                    <span class="debug-label">Person X Offset:</span>
+                    <span class="debug-value" id="debugOffsetX">0 px</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Person Size:</span>
+                    <span class="debug-value" id="debugSize">0 px²</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Drive Command:</span>
+                    <span class="debug-value" id="debugDrive">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Steer Command:</span>
+                    <span class="debug-value" id="debugSteer">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Detection Conf:</span>
+                    <span class="debug-value" id="debugConf">0%</span>
+                </div>
             </div>
         </div>
 
-        <!-- Log -->
+        <!-- Log Panel -->
         <div class="panel">
-            <h2>📝 System Log</h2>
+            <h2>📝 SYSTEM LOG</h2>
             <div class="log" id="log"></div>
         </div>
     </div>
 
     <script>
-        // Global variables
+        // ═══════════════════════════════════════════════════════════
+        // GLOBAL CONFIGURATION
+        // ═══════════════════════════════════════════════════════════
+        
         let esp32Ip = '';
-        let isConnected = false;
-        let cameraActive = false;
+        let connected = false;
         let model = null;
-        let currentMode = 'follow';
+        let mode = 'stop';
         let frameCount = 0;
-        let lastFpsUpdate = 0;
+        let lastFps = 0;
+        let cmdCount = 0;
         
-        // Person following parameters
-        const TARGET_DISTANCE = 180; // pixels - ideal distance from center
-        const DEAD_ZONE = 30; // pixels - no movement in this zone
-        const MAX_STEER = 80; // maximum steering power
-        const MAX_DRIVE = 60; // maximum drive power
-        
-        // DOM elements
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        
+        // ═══════════════════════════════════════════════════════════
+        // ADVANCED FOLLOWING ALGORITHM - PRECISION TUNED
+        // ═══════════════════════════════════════════════════════════
+        
+        const CONFIG = {
+            // Frame geometry
+            FRAME_CENTER_X: 320,
+            FRAME_CENTER_Y: 240,
+            
+            // Control parameters
+            DEAD_ZONE: 30,          // Center tolerance (pixels)
+            
+            // PID-like gains
+            KP_STEER: 0.18,         // Steering proportional gain (INCREASED)
+            KD_STEER: 0.05,         // Steering derivative gain (smoothing)
+            
+            KP_DRIVE: 0.10,         // Drive proportional gain
+            
+            // Target parameters
+            TARGET_SIZE: 38000,     // Ideal person bounding box area
+            SIZE_TOLERANCE: 8000,   // Size dead zone
+            
+            // Output limits
+            MAX_STEER: 75,          // Maximum steering command
+            MIN_STEER: 15,          // Minimum steering command
+            MAX_DRIVE: 65,          // Maximum drive command
+            MIN_DRIVE: 20,          // Minimum drive command
+            
+            // Safety
+            MIN_CONFIDENCE: 0.6,    // Minimum detection confidence
+            COMMAND_RATE: 100       // Command send rate (ms)
+        };
+        
+        let lastSteerError = 0;
+        let lastCommandTime = 0;
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            log('🚀 PRODUCTION AI Car Controller Initialized');
-            log('🎯 Person Following Algorithm: Proportional Control');
-            loadSavedSettings();
-        });
+        // ═══════════════════════════════════════════════════════════
+        // INITIALIZATION
+        // ═══════════════════════════════════════════════════════════
         
-        function loadSavedSettings() {
-            const savedIp = localStorage.getItem('esp32Ip');
-            if (savedIp) {
-                document.getElementById('esp32Ip').value = savedIp;
-            }
-        }
+        window.onload = () => {
+            const saved = localStorage.getItem('esp32Ip');
+            if (saved) document.getElementById('esp32Ip').value = saved;
+            log('🚀 System initialized - Ready to connect');
+        };
+
+        // ═══════════════════════════════════════════════════════════
+        // CONNECTION MANAGEMENT
+        // ═══════════════════════════════════════════════════════════
         
-        function connectToESP32() {
+        function connect() {
             esp32Ip = document.getElementById('esp32Ip').value.trim();
             if (!esp32Ip) {
                 log('❌ Please enter ESP32 IP address');
@@ -333,43 +379,41 @@
             }
             
             localStorage.setItem('esp32Ip', esp32Ip);
+            log('🔄 Connecting to ' + esp32Ip + '...');
             
-            // Test connection
             fetch(`http://${esp32Ip}/status`)
-                .then(response => response.json())
-                .then(data => {
-                    isConnected = true;
-                    updateConnectionStatus(true);
-                    log('✅ Connected to ESP32');
-                    startStatusUpdates();
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
                 })
-                .catch(error => {
-                    log('❌ Failed to connect to ESP32: ' + error.message);
-                    updateConnectionStatus(false);
+                .then(data => {
+                    connected = true;
+                    updateStatus('conn', true, 'Connected ✓');
+                    log('✅ ESP32 connected successfully');
+                    log(`📊 Status: Drive=${data.drive} Steer=${data.steer}`);
+                })
+                .catch(e => {
+                    connected = false;
+                    updateStatus('conn', false, 'Connection failed');
+                    log('❌ Connection error: ' + e.message);
+                    log('💡 Check: 1) IP correct 2) Same WiFi 3) ESP32 powered');
                 });
         }
-        
-        function updateConnectionStatus(connected) {
-            const statusElement = document.getElementById('connectionStatus');
-            if (connected) {
-                statusElement.innerHTML = '<span class="status-indicator status-connected"></span>Connected';
-            } else {
-                statusElement.innerHTML = '<span class="status-indicator status-disconnected"></span>Disconnected';
-            }
-        }
+
+        // ═══════════════════════════════════════════════════════════
+        // CAMERA & AI INITIALIZATION
+        // ═══════════════════════════════════════════════════════════
         
         async function startCamera() {
             try {
-                log('📷 Starting camera and AI system...');
-                updateCameraStatus('Initializing...', false);
+                log('📷 Requesting camera access...');
                 
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { 
                         facingMode: 'environment',
                         width: { ideal: 640 },
                         height: { ideal: 480 }
-                    },
-                    audio: false
+                    }
                 });
                 
                 video.srcObject = stream;
@@ -379,318 +423,327 @@
                     video.play();
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    cameraActive = true;
-                    updateCameraStatus('Active - AI Processing', true);
-                    log('✅ Camera started - Loading AI model...');
-                    loadAIModel();
+                    
+                    // Update center based on actual resolution
+                    CONFIG.FRAME_CENTER_X = canvas.width / 2;
+                    CONFIG.FRAME_CENTER_Y = canvas.height / 2;
+                    
+                    updateStatus('cam', true, 'Camera active ✓');
+                    log('✅ Camera started: ' + canvas.width + 'x' + canvas.height);
+                    loadModel();
                 };
                 
-            } catch (error) {
-                log('❌ Camera error: ' + error.message);
-                updateCameraStatus('Error: ' + error.message, false);
+            } catch (e) {
+                log('❌ Camera error: ' + e.message);
+                updateStatus('cam', false, 'Camera error');
             }
         }
-        
-        function updateCameraStatus(message, active) {
-            const statusElement = document.getElementById('cameraStatus');
-            if (active) {
-                statusElement.innerHTML = `<span class="status-indicator status-camera"></span>${message}`;
-            } else {
-                statusElement.innerHTML = `<span class="status-indicator status-disconnected"></span>${message}`;
-            }
-        }
-        
-        async function loadAIModel() {
+
+        async function loadModel() {
             try {
-                log('🤖 Loading TensorFlow.js COCO-SSD model...');
+                log('🤖 Loading AI model (COCO-SSD)...');
                 model = await cocoSsd.load();
-                log('✅ AI model loaded - Starting person detection');
-                startObjectDetection();
-            } catch (error) {
-                log('❌ AI model error: ' + error.message);
+                log('✅ AI model loaded - Person detection ready');
+                detect();
+            } catch (e) {
+                log('❌ AI model error: ' + e.message);
             }
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // DETECTION LOOP
+        // ═══════════════════════════════════════════════════════════
         
-        function startObjectDetection() {
-            if (!model || !cameraActive) return;
-            detectFrame();
-        }
-        
-        async function detectFrame() {
-            if (!model || !cameraActive) {
-                requestAnimationFrame(detectFrame);
+        async function detect() {
+            if (!model) {
+                requestAnimationFrame(detect);
                 return;
             }
             
             try {
                 const predictions = await model.detect(video);
-                const people = predictions.filter(p => p.class === 'person');
+                const people = predictions.filter(p => 
+                    p.class === 'person' && p.score >= CONFIG.MIN_CONFIDENCE
+                );
                 
                 // Update FPS counter
                 frameCount++;
                 const now = Date.now();
-                if (now - lastFpsUpdate >= 1000) {
-                    document.getElementById('fpsValue').textContent = frameCount;
-                    document.getElementById('fpsDebug').textContent = `${frameCount} FPS - AI Active`;
+                if (now - lastFps >= 1000) {
+                    document.getElementById('fpsVal').textContent = frameCount;
                     frameCount = 0;
-                    lastFpsUpdate = now;
+                    lastFps = now;
                 }
                 
-                // Clear canvas and draw detections
+                // Draw all detections
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 drawDetections(predictions);
                 
-                if (people.length > 0) {
-                    // Find the most confident person detection
+                // Process based on mode
+                if (mode === 'follow' && people.length > 0) {
                     const person = people.reduce((max, p) => p.score > max.score ? p : max);
-                    processPersonDetection(person);
+                    followPerson(person);
+                } else if (mode === 'patrol') {
+                    patrolMode();
+                } else if (mode === 'scan') {
+                    scanMode();
                 } else {
-                    handleNoDetection();
+                    if (mode === 'follow' && people.length === 0) {
+                        document.getElementById('personVal').textContent = 'NONE';
+                        updateDebug(0, 0, 0, 0, 0);
+                    }
+                    throttledCommand(0, 0);
                 }
                 
-            } catch (error) {
-                console.error('Detection error:', error);
+            } catch (e) {
+                console.error('Detection error:', e);
             }
             
-            requestAnimationFrame(detectFrame);
+            requestAnimationFrame(detect);
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // VISUALIZATION
+        // ═══════════════════════════════════════════════════════════
         
         function drawDetections(predictions) {
-            predictions.forEach(prediction => {
-                const [x, y, width, height] = prediction.bbox;
-                const isPerson = prediction.class === 'person';
+            predictions.forEach(p => {
+                const [x, y, w, h] = p.bbox;
+                const isPerson = p.class === 'person';
                 
-                // Draw bounding box
-                ctx.strokeStyle = isPerson ? '#00ff88' : '#ffcc00';
+                // Bounding box
+                ctx.strokeStyle = isPerson ? '#0f0' : '#ff0';
                 ctx.lineWidth = isPerson ? 3 : 2;
-                ctx.strokeRect(x, y, width, height);
+                ctx.strokeRect(x, y, w, h);
                 
-                // Draw label
-                ctx.fillStyle = isPerson ? '#00ff88' : '#ffcc00';
-                ctx.font = '14px Arial';
-                ctx.fillText(
-                    `${prediction.class} (${Math.round(prediction.score * 100)}%)`,
-                    x, y - 5
-                );
-
-                // Draw center point for person
+                // Label with confidence
+                ctx.fillStyle = isPerson ? '#0f0' : '#ff0';
+                ctx.font = 'bold 14px monospace';
+                const label = `${p.class} ${Math.round(p.score * 100)}%`;
+                ctx.fillText(label, x, y - 8);
+                
                 if (isPerson) {
-                    const centerX = x + width / 2;
-                    const centerY = y + height / 2;
-                    const frameCenterX = canvas.width / 2;
+                    const cx = x + w / 2;
+                    const cy = y + h / 2;
                     
-                    // Draw person center
-                    ctx.fillStyle = '#ff0000';
+                    // Person center point
+                    ctx.fillStyle = '#f00';
                     ctx.beginPath();
-                    ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI);
+                    ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
                     ctx.fill();
                     
-                    // Draw frame center
-                    ctx.strokeStyle = '#00ffff';
+                    // Frame center crosshair
+                    ctx.strokeStyle = '#0ff';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
-                    ctx.moveTo(frameCenterX - 15, canvas.height / 2);
-                    ctx.lineTo(frameCenterX + 15, canvas.height / 2);
-                    ctx.moveTo(frameCenterX, canvas.height / 2 - 15);
-                    ctx.lineTo(frameCenterX, canvas.height / 2 + 15);
+                    ctx.moveTo(CONFIG.FRAME_CENTER_X - 20, CONFIG.FRAME_CENTER_Y);
+                    ctx.lineTo(CONFIG.FRAME_CENTER_X + 20, CONFIG.FRAME_CENTER_Y);
+                    ctx.moveTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y - 20);
+                    ctx.lineTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y + 20);
                     ctx.stroke();
                     
-                    // Draw line between centers
-                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
-                    ctx.setLineDash([5, 5]);
+                    // Connection line
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([10, 5]);
                     ctx.beginPath();
-                    ctx.moveTo(frameCenterX, canvas.height / 2);
-                    ctx.lineTo(centerX, centerY);
+                    ctx.moveTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y);
+                    ctx.lineTo(cx, cy);
                     ctx.stroke();
                     ctx.setLineDash([]);
                     
-                    // Display offset info
-                    const offsetX = centerX - frameCenterX;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '12px Arial';
-                    ctx.fillText(`Offset: ${Math.round(offsetX)}px`, centerX + 10, centerY - 10);
+                    // Offset display
+                    const offsetX = cx - CONFIG.FRAME_CENTER_X;
+                    ctx.fillStyle = '#fff';
+                    ctx.font = 'bold 12px monospace';
+                    ctx.fillText(`Δx: ${Math.round(offsetX)}px`, cx + 10, cy - 10);
                 }
             });
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // PERSON FOLLOWING ALGORITHM - ADVANCED PID-LIKE CONTROL
+        // ═══════════════════════════════════════════════════════════
         
-        function processPersonDetection(person) {
+        function followPerson(person) {
             const [x, y, w, h] = person.bbox;
             const personCenterX = x + w / 2;
-            const personCenterY = y + h / 2;
-            const frameCenterX = canvas.width / 2;
-            const frameCenterY = canvas.height / 2;
+            const personSize = w * h;
             
-            // Calculate horizontal offset from center
-            const offsetX = personCenterX - frameCenterX;
-            const personSize = w * h; // Area of bounding box
+            // Calculate horizontal offset error
+            const errorX = personCenterX - CONFIG.FRAME_CENTER_X;
             
-            // Update display
-            document.getElementById('distanceValue').textContent = Math.round(Math.abs(offsetX)) + 'px';
-            document.getElementById('distanceDebug').textContent = `Offset: ${Math.round(offsetX)}px`;
-            
-            let drive = 0;
+            // ──────────────────────────────────────────────────────
+            // STEERING CONTROL - PD Controller
+            // ──────────────────────────────────────────────────────
             let steer = 0;
             
-            // Person following algorithm
-            if (currentMode === 'follow') {
-                // Calculate steering based on horizontal offset (Proportional Control)
-                if (Math.abs(offsetX) > DEAD_ZONE) {
-                    steer = Math.max(-MAX_STEER, Math.min(MAX_STEER, offsetX / 5));
-                }
+            if (Math.abs(errorX) > CONFIG.DEAD_ZONE) {
+                // Proportional term
+                const proportional = errorX * CONFIG.KP_STEER;
                 
-                // Calculate drive based on person size (bigger = closer, smaller = farther)
-                if (personSize > 50000) { // Very close - move back
-                    drive = -30;
-                } else if (personSize > 30000) { // Good distance - maintain
-                    drive = 0;
-                } else if (personSize > 15000) { // A bit far - move forward slowly
-                    drive = 30;
-                } else { // Too far - move forward
-                    drive = 50;
-                }
+                // Derivative term (rate of change)
+                const derivative = (errorX - lastSteerError) * CONFIG.KD_STEER;
+                lastSteerError = errorX;
                 
-                // Debug info
-                document.getElementById('driveDebug').textContent = `Size: ${Math.round(personSize)}`;
-                document.getElementById('steerDebug').textContent = `Offset: ${Math.round(offsetX)}px`;
-                document.getElementById('trackingDebug').textContent = 
-                    `Person at (${Math.round(personCenterX)}, ${Math.round(personCenterY)}) | Size: ${Math.round(personSize)}`;
-                    
-            } else if (currentMode === 'patrol') {
-                // Random patrol behavior
-                drive = 40;
-                steer = Math.round((Math.random() - 0.5) * 40);
-            } else if (currentMode === 'avoid') {
-                // Simple obstacle avoidance
-                drive = 30;
-                steer = Math.random() > 0.5 ? 40 : -40;
-            } else if (currentMode === 'stop') {
-                drive = 0;
-                steer = 0;
-            }
-            
-            sendControlCommand(drive, steer);
-            updateTrackingInfo(person, offsetX, personSize);
-        }
-        
-        function handleNoDetection() {
-            document.getElementById('distanceValue').textContent = '-';
-            document.getElementById('distanceDebug').textContent = 'No person';
-            document.getElementById('trackingDebug').textContent = 'Searching for person...';
-            
-            if (currentMode === 'patrol') {
-                // Continue patrolling
-                sendControlCommand(30, Math.round((Math.random() - 0.5) * 60));
-            } else if (currentMode === 'follow') {
-                // Stop if no person detected in follow mode
-                sendControlCommand(0, 0);
+                // Combined control signal
+                steer = proportional + derivative;
+                
+                // Apply limits
+                steer = Math.max(-CONFIG.MAX_STEER, Math.min(CONFIG.MAX_STEER, steer));
+                
+                // Apply minimum threshold
+                if (Math.abs(steer) < CONFIG.MIN_STEER) {
+                    steer = Math.sign(steer) * CONFIG.MIN_STEER;
+                }
             } else {
-                sendControlCommand(0, 0);
+                lastSteerError = 0;
             }
-        }
-        
-        function updateTrackingInfo(person, offsetX, personSize) {
-            const info = document.getElementById('trackingInfo');
-            const [x, y, w, h] = person.bbox;
             
-            info.innerHTML = `
-                <div>👤 Person Tracking Active</div>
-                <div>📍 Position: (${Math.round(x + w/2)}, ${Math.round(y + h/2)})</div>
-                <div>📐 Size: ${Math.round(w)}×${Math.round(h)} (${Math.round(personSize)})</div>
-                <div>🎯 Offset: ${Math.round(offsetX)}px ${offsetX > 0 ? 'RIGHT' : 'LEFT'}</div>
-                <div class="debug-info" id="trackingDebug">Following person...</div>
-            `;
-        }
-        
-        function sendControlCommand(drive, steer) {
-            if (!isConnected) {
-                log('⚠️ Not connected to ESP32');
-                return;
+            // ──────────────────────────────────────────────────────
+            // DRIVE CONTROL - Proportional based on size
+            // ──────────────────────────────────────────────────────
+            let drive = 0;
+            const sizeError = CONFIG.TARGET_SIZE - personSize;
+            
+            if (Math.abs(sizeError) > CONFIG.SIZE_TOLERANCE) {
+                drive = sizeError * CONFIG.KP_DRIVE;
+                drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
+                
+                // Apply minimum threshold
+                if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
+                    drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+                }
             }
+            
+            // Send command with throttling
+            throttledCommand(Math.round(drive), Math.round(steer));
             
             // Update UI
-            document.getElementById('driveValue').textContent = Math.abs(drive) + '%';
-            document.getElementById('driveValue').style.color = drive > 0 ? '#00ff88' : (drive < 0 ? '#ff4444' : '#cccccc');
-            document.getElementById('steerValue').textContent = Math.abs(steer) + '%';
-            document.getElementById('steerValue').style.color = steer !== 0 ? '#00ccff' : '#cccccc';
+            document.getElementById('personVal').textContent = Math.round(personSize);
+            updateDebug(errorX, personSize, drive, steer, person.score * 100);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // ALTERNATE MODES
+        // ═══════════════════════════════════════════════════════════
+        
+        function patrolMode() {
+            const t = Date.now() / 2000;
+            const drive = 35;
+            const steer = Math.sin(t) * 40;
+            throttledCommand(drive, Math.round(steer));
+        }
+
+        function scanMode() {
+            const t = Date.now() / 1000;
+            const steer = Math.sin(t) * 50;
+            throttledCommand(0, Math.round(steer));
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // COMMAND TRANSMISSION
+        // ═══════════════════════════════════════════════════════════
+        
+        function throttledCommand(drive, steer) {
+            const now = Date.now();
+            if (now - lastCommandTime < CONFIG.COMMAND_RATE) return;
+            lastCommandTime = now;
             
-            // Send command to ESP32
+            sendCmd(drive, steer);
+        }
+
+        function sendCmd(drive, steer) {
+            if (!connected) return;
+            
+            // Update UI
+            document.getElementById('driveVal').textContent = drive;
+            document.getElementById('steerVal').textContent = steer;
+            
+            // Send to ESP32
             fetch(`http://${esp32Ip}/control?drive=${drive}&steer=${steer}`)
-                .then(response => response.json())
+                .then(r => {
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    return r.json();
+                })
                 .then(data => {
-                    if (data.status !== 'OK') {
-                        log('❌ Control command failed: ' + data.message);
+                    cmdCount++;
+                    if (cmdCount % 10 === 0) {
+                        log(`📡 CMD #${cmdCount}: D=${drive} S=${steer}`);
                     }
                 })
-                .catch(error => {
-                    log('❌ Control command error: ' + error.message);
+                .catch(e => {
+                    console.error('Command error:', e);
+                    if (cmdCount % 50 === 0) {
+                        log('⚠️ Command transmission error');
+                    }
                 });
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // MODE CONTROL
+        // ═══════════════════════════════════════════════════════════
         
-        function setMode(mode) {
-            currentMode = mode;
+        function setMode(m) {
+            mode = m;
             
             // Update UI
             document.querySelectorAll('.mode-btn').forEach(btn => {
                 btn.classList.remove('active');
             });
-            event.target.classList.add('active');
+            document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1)).classList.add('active');
             
-            log(`🎮 Mode changed to: ${mode}`);
+            log(`🎮 Mode: ${m.toUpperCase()}`);
             
-            // Stop when changing modes
-            if (mode === 'stop') {
-                sendControlCommand(0, 0);
+            if (m === 'stop') {
+                sendCmd(0, 0);
             }
         }
-        
-        function emergencyStop() {
-            if (isConnected) {
-                fetch(`http://${esp32Ip}/emergency`)
-                    .then(() => {
-                        log('🛑 EMERGENCY STOP - All systems halted');
-                        document.getElementById('driveValue').textContent = '0%';
-                        document.getElementById('steerValue').textContent = '0%';
-                        document.getElementById('driveValue').style.color = '#cccccc';
-                        document.getElementById('steerValue').style.color = '#cccccc';
-                    })
-                    .catch(error => {
-                        log('❌ Emergency stop failed: ' + error.message);
-                    });
-            } else {
-                log('⚠️ Not connected - Cannot send emergency stop');
-            }
-        }
-        
-        function startStatusUpdates() {
-            setInterval(() => {
-                if (isConnected) {
-                    fetch(`http://${esp32Ip}/data`)
-                        .then(response => response.json())
-                        .then(data => {
-                            // Update ultrasonic distance if available
-                            if (data.distance > 0) {
-                                document.getElementById('distanceDebug').textContent = 
-                                    `Ultrasonic: ${Math.round(data.distance)}cm`;
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Status update error:', error);
-                        });
-                }
-            }, 1000);
-        }
-        
-        function log(message) {
-            const logElement = document.getElementById('log');
-            const timestamp = new Date().toLocaleTimeString();
-            logElement.innerHTML = `[${timestamp}] ${message}<br>` + logElement.innerHTML;
-            
-            // Keep log manageable
-            if (logElement.children.length > 20) {
-                logElement.removeChild(logElement.lastChild);
+
+        function emergency() {
+            if (!connected) {
+                log('⚠️ Not connected to ESP32');
+                return;
             }
             
-            logElement.scrollTop = 0;
+            fetch(`http://${esp32Ip}/emergency`)
+                .then(() => {
+                    log('🚨 EMERGENCY STOP ACTIVATED');
+                    document.getElementById('driveVal').textContent = '0';
+                    document.getElementById('steerVal').textContent = '0';
+                    mode = 'stop';
+                    setMode('stop');
+                })
+                .catch(e => log('❌ Emergency stop failed: ' + e.message));
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // UI UPDATES
+        // ═══════════════════════════════════════════════════════════
+        
+        function updateStatus(type, on, text) {
+            document.getElementById(type + 'Status').className = 'status ' + (on ? 'on' : 'off');
+            document.getElementById(type + 'Text').textContent = text;
+        }
+
+        function updateDebug(offsetX, size, drive, steer, conf) {
+            document.getElementById('debugOffsetX').textContent = Math.round(offsetX) + ' px';
+            document.getElementById('debugSize').textContent = Math.round(size) + ' px²';
+            document.getElementById('debugDrive').textContent = Math.round(drive);
+            document.getElementById('debugSteer').textContent = Math.round(steer);
+            document.getElementById('debugConf').textContent = Math.round(conf) + '%';
+        }
+
+        function log(msg) {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML = `<div style="color:#0ff">[${time}]</div> ${msg}<br>` + el.innerHTML;
+            
+            // Limit log size
+            const lines = el.innerHTML.split('<br>');
+            if (lines.length > 30) {
+                el.innerHTML = lines.slice(0, 30).join('<br>');
+            }
         }
     </script>
 </body>
