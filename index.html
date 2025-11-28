@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -373,8 +374,9 @@
         let lastDetectionTime = 0;
         let filteredOffset = 0;
         let filteredSize = 35000;
-        let lastSteerCommand = 0;
-        let lastDriveCommand = 0;
+let lastSteerCommand = 0;
+let lastDriveCommand = 0;
+let commandFilterState = { steer: 0, drive: 0 };
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
@@ -410,6 +412,9 @@
             MIN_DRIVE: 25,          // Minimum drive command
             STEER_SLEW_RATE: 140,   // deg/sec limit to prevent jerk
             DRIVE_SLEW_RATE: 90,    // power/sec limit
+            SOFT_ZONE: 12,          // Additional easing band outside dead zone
+            STEER_FILTER_ALPHA: 0.35,
+            DRIVE_FILTER_ALPHA: 0.25,
             
             // Safety
             MIN_CONFIDENCE: 0.65,   // Minimum detection confidence
@@ -776,6 +781,14 @@
                 }
             }
             
+            steer = applySoftZoneGain(steer, errorX);
+            drive *= 1 - Math.min(0.65, Math.abs(errorX) / (CONFIG.FRAME_CENTER_X)); // slow down when steering hard
+            
+            steer = lowPassFilter(steer, commandFilterState.steer, CONFIG.STEER_FILTER_ALPHA);
+            drive = lowPassFilter(drive, commandFilterState.drive, CONFIG.DRIVE_FILTER_ALPHA);
+            commandFilterState.steer = steer;
+            commandFilterState.drive = drive;
+            
             const steerDeltaLimit = CONFIG.STEER_SLEW_RATE * dt;
             const driveDeltaLimit = CONFIG.DRIVE_SLEW_RATE * dt;
             steer = slewLimit(steer, lastSteerCommand, steerDeltaLimit);
@@ -791,15 +804,22 @@
         function handleTargetLoss() {
             document.getElementById('personVal').textContent = 'NONE';
             updateDebug(0, 0, 0, 0, 0, 0, 0, 0);
-            const since = Date.now() - lastDetectionTime;
-            if (since > CONFIG.TARGET_LOSS_TIMEOUT) {
+            if (!lastDetectionTime) {
                 throttledCommand(0, 0);
-                pidState.integral = 0;
-                pidState.prevError = 0;
+                return;
+            }
+            const since = Date.now() - lastDetectionTime;
+            if (since < CONFIG.TARGET_LOSS_TIMEOUT) {
+                const ramp = clamp(1 - (since / CONFIG.TARGET_LOSS_TIMEOUT), 0, 1);
+                const steer = Math.round(lastSteerCommand * ramp);
+                const drive = Math.round(lastDriveCommand * ramp);
+                commandFilterState.steer = steer;
+                commandFilterState.drive = drive;
+                throttledCommand(drive, steer);
+            } else {
+                throttledCommand(0, 0);
+                resetControlState();
                 filteredOffset *= 0.5;
-                filteredSize = CONFIG.TARGET_SIZE;
-                lastSteerCommand = 0;
-                lastDriveCommand = 0;
             }
         }
 
@@ -823,9 +843,25 @@
             
             return steer;
         }
+        
+        function applySoftZoneGain(value, error) {
+            const absError = Math.abs(error);
+            if (absError <= CONFIG.DEAD_ZONE) return 0;
+            if (CONFIG.SOFT_ZONE <= 0) return value;
+            const excess = absError - CONFIG.DEAD_ZONE;
+            const scale = clamp(excess / CONFIG.SOFT_ZONE, 0, 1);
+            return value * scale;
+        }
 
         function clamp(val, min, max) {
             return Math.min(max, Math.max(min, val));
+        }
+
+        function lowPassFilter(target, lastValue, alpha) {
+            if (!isFinite(lastValue)) lastValue = 0;
+            if (!isFinite(target)) return lastValue;
+            const a = clamp(alpha, 0, 1);
+            return lastValue + a * (target - lastValue);
         }
 
         function slewLimit(target, lastValue, maxDelta) {
@@ -854,6 +890,16 @@
                 }
             });
             return best ? best.person : null;
+        }
+        
+        function resetControlState() {
+            pidState.integral = 0;
+            pidState.prevError = 0;
+            filteredOffset = 0;
+            filteredSize = CONFIG.TARGET_SIZE;
+            lastSteerCommand = 0;
+            lastDriveCommand = 0;
+            commandFilterState = { steer: 0, drive: 0 };
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -934,12 +980,7 @@
             if (m === 'stop') {
                 sendCmd(0, 0);
                 lastSteerError = 0;
-                pidState.integral = 0;
-                pidState.prevError = 0;
-                filteredOffset = 0;
-                filteredSize = CONFIG.TARGET_SIZE;
-                lastSteerCommand = 0;
-                lastDriveCommand = 0;
+                resetControlState();
             }
         }
 
@@ -957,12 +998,7 @@
                     mode = 'stop';
                     setMode('stop');
                     lastSteerError = 0;
-                    pidState.integral = 0;
-                    pidState.prevError = 0;
-                    filteredOffset = 0;
-                    filteredSize = CONFIG.TARGET_SIZE;
-                    lastSteerCommand = 0;
-                    lastDriveCommand = 0;
+                    resetControlState();
                 })
                 .catch(e => log('❌ Emergency stop failed: ' + e.message));
         }
