@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -326,10 +325,6 @@
                     <span class="debug-value" id="debugPterm">0</span>
                 </div>
                 <div class="debug-row">
-                    <span class="debug-label">I-Term:</span>
-                    <span class="debug-value" id="debugIterm">0</span>
-                </div>
-                <div class="debug-row">
                     <span class="debug-label">D-Term:</span>
                     <span class="debug-value" id="debugDterm">0</span>
                 </div>
@@ -371,12 +366,6 @@
         let frameCount = 0;
         let lastFps = 0;
         let cmdCount = 0;
-        let lastDetectionTime = 0;
-        let filteredOffset = 0;
-        let filteredSize = 35000;
-let lastSteerCommand = 0;
-let lastDriveCommand = 0;
-let commandFilterState = { steer: 0, drive: 0 };
         
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
@@ -397,7 +386,6 @@ let commandFilterState = { steer: 0, drive: 0 };
             // PID-like gains - NOW TUNEABLE
             KP_STEER: 0.25,         // Steering proportional gain (INCREASED for responsiveness)
             KD_STEER: 0.08,         // Steering derivative gain (smoothing)
-            KI_STEER: 0.02,         // Steering integral gain (new)
             
             KP_DRIVE: 0.12,         // Drive proportional gain
             
@@ -410,26 +398,16 @@ let commandFilterState = { steer: 0, drive: 0 };
             MIN_STEER: 20,          // Minimum steering command for movement
             MAX_DRIVE: 70,          // Maximum drive command
             MIN_DRIVE: 25,          // Minimum drive command
-            STEER_SLEW_RATE: 140,   // deg/sec limit to prevent jerk
-            DRIVE_SLEW_RATE: 90,    // power/sec limit
-            STEER_FILTER_ALPHA: 0.35,
-            DRIVE_FILTER_ALPHA: 0.25,
             
             // Safety
             MIN_CONFIDENCE: 0.65,   // Minimum detection confidence
-            COMMAND_RATE: 80,       // Command send rate (ms) - faster response
-            TARGET_LOSS_TIMEOUT: 800, // ms before we consider target lost
-            EMA_ALPHA: 0.35,        // smoothing factor for offset/size
-            MAX_INTEGRAL: 120       // anti-windup clamp
+            COMMAND_RATE: 80        // Command send rate (ms) - faster response
         };
         
         let lastSteerError = 0;
         let lastCommandTime = 0;
-        const pidState = {
-            integral: 0,
-            prevError: 0,
-            prevTime: performance.now()
-        };
+        let errorHistory = [];
+        const HISTORY_SIZE = 5;
 
         // ═══════════════════════════════════════════════════════════
         // INITIALIZATION
@@ -441,8 +419,6 @@ let commandFilterState = { steer: 0, drive: 0 };
             
             // Load saved tuning
             loadTuning();
-            filteredSize = CONFIG.TARGET_SIZE;
-            filteredOffset = 0;
             log('🚀 System initialized - Advanced steering control ready');
         };
 
@@ -625,20 +601,17 @@ let commandFilterState = { steer: 0, drive: 0 };
                 drawDetections(predictions);
                 
                 // Process based on mode
-                if (mode === 'follow') {
-                    const target = selectTarget(people);
-                    if (target) {
-                        followPerson(target);
-                    } else {
-                        handleTargetLoss();
-                    }
+                if (mode === 'follow' && people.length > 0) {
+                    const person = people.reduce((max, p) => p.score > max.score ? p : max);
+                    followPerson(person);
                 } else if (mode === 'patrol') {
                     patrolMode();
                 } else if (mode === 'scan') {
                     scanMode();
                 } else {
                     if (mode === 'follow' && people.length === 0) {
-                        handleTargetLoss();
+                        document.getElementById('personVal').textContent = 'NONE';
+                        updateDebug(0, 0, 0, 0, 0, 0, 0);
                     }
                     throttledCommand(0, 0);
                 }
@@ -722,103 +695,85 @@ let commandFilterState = { steer: 0, drive: 0 };
         // ═══════════════════════════════════════════════════════════
         
         function followPerson(person) {
-            const now = getNow();
-            const dt = Math.max((now - pidState.prevTime) / 1000, 0.001);
-            pidState.prevTime = now;
-            
             const [x, y, w, h] = person.bbox;
             const personCenterX = x + w / 2;
             const personSize = w * h;
-            lastDetectionTime = Date.now();
             
-            const rawError = personCenterX - CONFIG.FRAME_CENTER_X;
-            filteredOffset = (CONFIG.EMA_ALPHA * rawError) + ((1 - CONFIG.EMA_ALPHA) * filteredOffset);
-            filteredSize = (CONFIG.EMA_ALPHA * personSize) + ((1 - CONFIG.EMA_ALPHA) * filteredSize);
-            const errorX = filteredOffset;
+            // Calculate horizontal offset error
+            const errorX = personCenterX - CONFIG.FRAME_CENTER_X;
             
-            let pTerm = 0;
-            let iTerm = 0;
-            let dTerm = 0;
+            // Maintain error history for smoothing
+            errorHistory.push(errorX);
+            if (errorHistory.length > HISTORY_SIZE) {
+                errorHistory.shift();
+            }
+            
+            // ──────────────────────────────────────────────────────
+            // ENHANCED STEERING CONTROL - PD Controller
+            // ──────────────────────────────────────────────────────
             let steer = 0;
+            let pTerm = 0;
+            let dTerm = 0;
             
             if (Math.abs(errorX) > CONFIG.DEAD_ZONE) {
+                // Proportional term with non-linear response for small errors
                 pTerm = errorX * CONFIG.KP_STEER;
                 
-                pidState.integral += errorX * dt;
-                pidState.integral = clamp(pidState.integral, -CONFIG.MAX_INTEGRAL, CONFIG.MAX_INTEGRAL);
-                iTerm = pidState.integral * CONFIG.KI_STEER;
-                
-                const errorChange = (errorX - pidState.prevError) / dt;
+                // Derivative term (rate of change) with smoothing
+                const errorChange = errorX - lastSteerError;
                 dTerm = errorChange * CONFIG.KD_STEER;
-                pidState.prevError = errorX;
                 
-                steer = pTerm + iTerm + dTerm;
-            steer = applySteeringCurve(steer, errorX);
-            steer = clamp(steer, -CONFIG.MAX_STEER, CONFIG.MAX_STEER);
+                // Combined control signal
+                steer = pTerm + dTerm;
                 
+                // Apply non-linear response curve for better control
+                steer = applySteeringCurve(steer, errorX);
+                
+                // Apply limits
+                steer = Math.max(-CONFIG.MAX_STEER, Math.min(CONFIG.MAX_STEER, steer));
+                
+                // Apply minimum threshold with dead zone consideration
                 if (Math.abs(steer) < CONFIG.MIN_STEER) {
                     steer = Math.sign(steer) * CONFIG.MIN_STEER;
                 }
                 
                 lastSteerError = errorX;
             } else {
-                pidState.integral *= 0.6;
-                pidState.prevError = 0;
+                // Reset error when in dead zone to prevent integral windup
                 lastSteerError = 0;
                 steer = 0;
             }
             
+            // ──────────────────────────────────────────────────────
+            // DRIVE CONTROL - Enhanced distance control
+            // ──────────────────────────────────────────────────────
             let drive = 0;
-            const sizeError = CONFIG.TARGET_SIZE - filteredSize;
-            if (Math.abs(sizeError) > CONFIG.SIZE_TOLERANCE * 0.6) {
-                const steerPenalty = 1 - Math.min(1, Math.abs(steer) / CONFIG.MAX_STEER);
-                drive = sizeError * CONFIG.KP_DRIVE * steerPenalty;
-                drive = clamp(drive, -CONFIG.MAX_DRIVE, CONFIG.MAX_DRIVE);
-                
-                if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
-                    drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+            const sizeError = CONFIG.TARGET_SIZE - personSize;
+            
+            if (Math.abs(sizeError) > CONFIG.SIZE_TOLERANCE) {
+                // Only move if we have reasonable steering control
+                if (Math.abs(errorX) < canvas.width * 0.3) {
+                    drive = sizeError * CONFIG.KP_DRIVE;
+                    drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
+                    
+                    // Apply minimum threshold
+                    if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
+                        drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+                    }
+                    
+                    // Reduce speed when making sharp turns
+                    if (Math.abs(steer) > 50) {
+                        drive *= 0.7;
+                    }
                 }
             }
             
-            drive *= 1 - Math.min(0.65, Math.abs(errorX) / (CONFIG.FRAME_CENTER_X)); // slow down when steering hard
-            
-            steer = lowPassFilter(steer, commandFilterState.steer, CONFIG.STEER_FILTER_ALPHA);
-            drive = lowPassFilter(drive, commandFilterState.drive, CONFIG.DRIVE_FILTER_ALPHA);
-            commandFilterState.steer = steer;
-            commandFilterState.drive = drive;
-            
-            const steerDeltaLimit = CONFIG.STEER_SLEW_RATE * dt;
-            const driveDeltaLimit = CONFIG.DRIVE_SLEW_RATE * dt;
-            steer = slewLimit(steer, lastSteerCommand, steerDeltaLimit);
-            drive = slewLimit(drive, lastDriveCommand, driveDeltaLimit);
-            lastSteerCommand = steer;
-            lastDriveCommand = drive;
-            
+            // Send command with throttling
             throttledCommand(Math.round(drive), Math.round(steer));
+            
+            // Update UI
             document.getElementById('personVal').textContent = Math.round(personSize);
-            updateDebug(errorX, filteredSize, drive, steer, person.score * 100, pTerm, iTerm, dTerm);
-        }
-
-        function handleTargetLoss() {
-            document.getElementById('personVal').textContent = 'NONE';
-            updateDebug(0, 0, 0, 0, 0, 0, 0, 0);
-            if (!lastDetectionTime) {
-                throttledCommand(0, 0);
-                return;
-            }
-            const since = Date.now() - lastDetectionTime;
-            if (since < CONFIG.TARGET_LOSS_TIMEOUT) {
-                const ramp = clamp(1 - (since / CONFIG.TARGET_LOSS_TIMEOUT), 0, 1);
-                const steer = Math.round(lastSteerCommand * ramp);
-                const drive = Math.round(lastDriveCommand * ramp);
-                commandFilterState.steer = steer;
-                commandFilterState.drive = drive;
-                throttledCommand(drive, steer);
-            } else {
-                throttledCommand(0, 0);
-                resetControlState();
-                filteredOffset *= 0.5;
-            }
+            updateDebug(errorX, personSize, drive, steer, person.score * 100, pTerm, dTerm);
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -840,55 +795,6 @@ let commandFilterState = { steer: 0, drive: 0 };
             }
             
             return steer;
-        }
-        
-        function clamp(val, min, max) {
-            return Math.min(max, Math.max(min, val));
-        }
-
-        function lowPassFilter(target, lastValue, alpha) {
-            if (!isFinite(lastValue)) lastValue = 0;
-            if (!isFinite(target)) return lastValue;
-            const a = clamp(alpha, 0, 1);
-            return lastValue + a * (target - lastValue);
-        }
-
-        function slewLimit(target, lastValue, maxDelta) {
-            if (!isFinite(maxDelta) || maxDelta <= 0) return target;
-            const delta = target - lastValue;
-            if (Math.abs(delta) <= maxDelta) return target;
-            return lastValue + Math.sign(delta) * maxDelta;
-        }
-
-        function getNow() {
-            return (typeof performance !== 'undefined' ? performance.now() : Date.now());
-        }
-
-        function selectTarget(candidates) {
-            if (!candidates.length) return null;
-            const referenceX = CONFIG.FRAME_CENTER_X + filteredOffset;
-            let best = null;
-            candidates.forEach(p => {
-                const [x, , w, h] = p.bbox;
-                const cx = x + w / 2;
-                const area = w * h;
-                const alignment = 1 - Math.min(1, Math.abs(cx - referenceX) / canvas.width);
-                const composite = (p.score * 0.5) + (clamp(area / CONFIG.TARGET_SIZE, 0, 2) * 0.3) + (alignment * 0.2);
-                if (!best || composite > best.score) {
-                    best = { score: composite, person: p };
-                }
-            });
-            return best ? best.person : null;
-        }
-        
-        function resetControlState() {
-            pidState.integral = 0;
-            pidState.prevError = 0;
-            filteredOffset = 0;
-            filteredSize = CONFIG.TARGET_SIZE;
-            lastSteerCommand = 0;
-            lastDriveCommand = 0;
-            commandFilterState = { steer: 0, drive: 0 };
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -921,12 +827,13 @@ let commandFilterState = { steer: 0, drive: 0 };
         }
 
         function sendCmd(drive, steer) {
-            // Update UI regardless of connection so operators can see intent
+            if (!connected) return;
+            
+            // Update UI
             document.getElementById('driveVal').textContent = drive;
             document.getElementById('steerVal').textContent = steer;
             
-            if (!connected) return;
-            
+            // Send to ESP32
             fetch(`http://${esp32Ip}/control?drive=${drive}&steer=${steer}`)
                 .then(r => {
                     if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -961,14 +868,10 @@ let commandFilterState = { steer: 0, drive: 0 };
             
             log(`🎮 Mode: ${m.toUpperCase()}`);
             
-            if (m === 'follow') {
-                lastDetectionTime = Date.now();
-            }
-            
             if (m === 'stop') {
                 sendCmd(0, 0);
                 lastSteerError = 0;
-                resetControlState();
+                errorHistory = [];
             }
         }
 
@@ -986,7 +889,7 @@ let commandFilterState = { steer: 0, drive: 0 };
                     mode = 'stop';
                     setMode('stop');
                     lastSteerError = 0;
-                    resetControlState();
+                    errorHistory = [];
                 })
                 .catch(e => log('❌ Emergency stop failed: ' + e.message));
         }
@@ -1000,7 +903,7 @@ let commandFilterState = { steer: 0, drive: 0 };
             document.getElementById(type + 'Text').textContent = text;
         }
 
-        function updateDebug(offsetX, size, drive, steer, conf, pTerm, iTerm, dTerm) {
+        function updateDebug(offsetX, size, drive, steer, conf, pTerm, dTerm) {
             document.getElementById('debugOffsetX').textContent = Math.round(offsetX) + ' px';
             document.getElementById('debugError').textContent = Math.round(offsetX) + ' px';
             document.getElementById('debugSize').textContent = Math.round(size) + ' px²';
@@ -1008,7 +911,6 @@ let commandFilterState = { steer: 0, drive: 0 };
             document.getElementById('debugSteer').textContent = Math.round(steer);
             document.getElementById('debugConf').textContent = Math.round(conf) + '%';
             document.getElementById('debugPterm').textContent = Math.round(pTerm * 100) / 100;
-            document.getElementById('debugIterm').textContent = Math.round(iTerm * 100) / 100;
             document.getElementById('debugDterm').textContent = Math.round(dTerm * 100) / 100;
         }
 
