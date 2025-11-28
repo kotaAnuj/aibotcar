@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Car - Precision Control</title>
+    <title>AI Car - Precision Steering Control</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
     <style>
@@ -194,11 +194,21 @@
         }
         .debug-label { color: #0ff; }
         .debug-value { color: #ff0; font-weight: bold; }
+        .tuning-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .tuning-slider {
+            width: 100%;
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🤖 AI CAR PRECISION CONTROL</h1>
+        <h1>🤖 AI CAR PRECISION STEERING CONTROL</h1>
 
         <!-- Connection Panel -->
         <div class="panel">
@@ -247,6 +257,34 @@
             </button>
         </div>
 
+        <!-- Tuning Panel -->
+        <div class="panel">
+            <h2>⚙️ STEERING TUNING</h2>
+            <div class="tuning-controls">
+                <div>
+                    <label>KP (Proportional): <span id="kpValue">0.25</span></label>
+                    <input type="range" min="0.01" max="1.0" step="0.01" value="0.25" 
+                           class="tuning-slider" id="kpSlider" onchange="updateTuning()">
+                </div>
+                <div>
+                    <label>KD (Derivative): <span id="kdValue">0.08</span></label>
+                    <input type="range" min="0.01" max="0.5" step="0.01" value="0.08" 
+                           class="tuning-slider" id="kdSlider" onchange="updateTuning()">
+                </div>
+                <div>
+                    <label>Dead Zone: <span id="deadzoneValue">25</span>px</label>
+                    <input type="range" min="5" max="100" step="5" value="25" 
+                           class="tuning-slider" id="deadzoneSlider" onchange="updateTuning()">
+                </div>
+                <div>
+                    <label>Max Steer: <span id="maxSteerValue">85</span></label>
+                    <input type="range" min="30" max="100" step="5" value="85" 
+                           class="tuning-slider" id="maxSteerSlider" onchange="updateTuning()">
+                </div>
+            </div>
+            <button onclick="resetTuning()" style="margin-top: 10px;">🔄 RESET TUNING</button>
+        </div>
+
         <!-- Status Panel -->
         <div class="panel">
             <h2>📊 REAL-TIME TELEMETRY</h2>
@@ -277,6 +315,18 @@
                 <div class="debug-row">
                     <span class="debug-label">Person X Offset:</span>
                     <span class="debug-value" id="debugOffsetX">0 px</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Steering Error:</span>
+                    <span class="debug-value" id="debugError">0 px</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">P-Term:</span>
+                    <span class="debug-value" id="debugPterm">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">D-Term:</span>
+                    <span class="debug-value" id="debugDterm">0</span>
                 </div>
                 <div class="debug-row">
                     <span class="debug-label">Person Size:</span>
@@ -322,40 +372,42 @@
         const ctx = canvas.getContext('2d');
         
         // ═══════════════════════════════════════════════════════════
-        // ADVANCED FOLLOWING ALGORITHM - PRECISION TUNED
+        // ADVANCED STEERING CONTROL WITH REAL-TIME TUNING
         // ═══════════════════════════════════════════════════════════
         
-        const CONFIG = {
+        let CONFIG = {
             // Frame geometry
             FRAME_CENTER_X: 320,
             FRAME_CENTER_Y: 240,
             
-            // Control parameters
-            DEAD_ZONE: 30,          // Center tolerance (pixels)
+            // Control parameters - NOW TUNEABLE
+            DEAD_ZONE: 25,          // Center tolerance (pixels)
             
-            // PID-like gains
-            KP_STEER: 0.18,         // Steering proportional gain (INCREASED)
-            KD_STEER: 0.05,         // Steering derivative gain (smoothing)
+            // PID-like gains - NOW TUNEABLE
+            KP_STEER: 0.25,         // Steering proportional gain (INCREASED for responsiveness)
+            KD_STEER: 0.08,         // Steering derivative gain (smoothing)
             
-            KP_DRIVE: 0.10,         // Drive proportional gain
+            KP_DRIVE: 0.12,         // Drive proportional gain
             
             // Target parameters
-            TARGET_SIZE: 38000,     // Ideal person bounding box area
-            SIZE_TOLERANCE: 8000,   // Size dead zone
+            TARGET_SIZE: 35000,     // Ideal person bounding box area
+            SIZE_TOLERANCE: 10000,  // Size dead zone
             
-            // Output limits
-            MAX_STEER: 75,          // Maximum steering command
-            MIN_STEER: 15,          // Minimum steering command
-            MAX_DRIVE: 65,          // Maximum drive command
-            MIN_DRIVE: 20,          // Minimum drive command
+            // Output limits - NOW TUNEABLE
+            MAX_STEER: 85,          // Maximum steering command
+            MIN_STEER: 20,          // Minimum steering command for movement
+            MAX_DRIVE: 70,          // Maximum drive command
+            MIN_DRIVE: 25,          // Minimum drive command
             
             // Safety
-            MIN_CONFIDENCE: 0.6,    // Minimum detection confidence
-            COMMAND_RATE: 100       // Command send rate (ms)
+            MIN_CONFIDENCE: 0.65,   // Minimum detection confidence
+            COMMAND_RATE: 80        // Command send rate (ms) - faster response
         };
         
         let lastSteerError = 0;
         let lastCommandTime = 0;
+        let errorHistory = [];
+        const HISTORY_SIZE = 5;
 
         // ═══════════════════════════════════════════════════════════
         // INITIALIZATION
@@ -364,8 +416,77 @@
         window.onload = () => {
             const saved = localStorage.getItem('esp32Ip');
             if (saved) document.getElementById('esp32Ip').value = saved;
-            log('🚀 System initialized - Ready to connect');
+            
+            // Load saved tuning
+            loadTuning();
+            log('🚀 System initialized - Advanced steering control ready');
         };
+
+        // ═══════════════════════════════════════════════════════════
+        // TUNING CONTROLS
+        // ═══════════════════════════════════════════════════════════
+        
+        function updateTuning() {
+            CONFIG.KP_STEER = parseFloat(document.getElementById('kpSlider').value);
+            CONFIG.KD_STEER = parseFloat(document.getElementById('kdSlider').value);
+            CONFIG.DEAD_ZONE = parseInt(document.getElementById('deadzoneSlider').value);
+            CONFIG.MAX_STEER = parseInt(document.getElementById('maxSteerSlider').value);
+            
+            // Update display values
+            document.getElementById('kpValue').textContent = CONFIG.KP_STEER.toFixed(2);
+            document.getElementById('kdValue').textContent = CONFIG.KD_STEER.toFixed(2);
+            document.getElementById('deadzoneValue').textContent = CONFIG.DEAD_ZONE;
+            document.getElementById('maxSteerValue').textContent = CONFIG.MAX_STEER;
+            
+            // Save to localStorage
+            saveTuning();
+        }
+
+        function resetTuning() {
+            CONFIG.KP_STEER = 0.25;
+            CONFIG.KD_STEER = 0.08;
+            CONFIG.DEAD_ZONE = 25;
+            CONFIG.MAX_STEER = 85;
+            
+            document.getElementById('kpSlider').value = CONFIG.KP_STEER;
+            document.getElementById('kdSlider').value = CONFIG.KD_STEER;
+            document.getElementById('deadzoneSlider').value = CONFIG.DEAD_ZONE;
+            document.getElementById('maxSteerSlider').value = CONFIG.MAX_STEER;
+            
+            updateTuning();
+            log('⚙️ Tuning reset to defaults');
+        }
+
+        function saveTuning() {
+            const tuning = {
+                kp: CONFIG.KP_STEER,
+                kd: CONFIG.KD_STEER,
+                deadzone: CONFIG.DEAD_ZONE,
+                maxSteer: CONFIG.MAX_STEER
+            };
+            localStorage.setItem('steeringTuning', JSON.stringify(tuning));
+        }
+
+        function loadTuning() {
+            const saved = localStorage.getItem('steeringTuning');
+            if (saved) {
+                try {
+                    const tuning = JSON.parse(saved);
+                    CONFIG.KP_STEER = tuning.kp || 0.25;
+                    CONFIG.KD_STEER = tuning.kd || 0.08;
+                    CONFIG.DEAD_ZONE = tuning.deadzone || 25;
+                    CONFIG.MAX_STEER = tuning.maxSteer || 85;
+                    
+                    document.getElementById('kpSlider').value = CONFIG.KP_STEER;
+                    document.getElementById('kdSlider').value = CONFIG.KD_STEER;
+                    document.getElementById('deadzoneSlider').value = CONFIG.DEAD_ZONE;
+                    document.getElementById('maxSteerSlider').value = CONFIG.MAX_STEER;
+                    updateTuning();
+                } catch (e) {
+                    console.log('No saved tuning found');
+                }
+            }
+        }
 
         // ═══════════════════════════════════════════════════════════
         // CONNECTION MANAGEMENT
@@ -490,7 +611,7 @@
                 } else {
                     if (mode === 'follow' && people.length === 0) {
                         document.getElementById('personVal').textContent = 'NONE';
-                        updateDebug(0, 0, 0, 0, 0);
+                        updateDebug(0, 0, 0, 0, 0, 0, 0);
                     }
                     throttledCommand(0, 0);
                 }
@@ -532,7 +653,7 @@
                     ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
                     ctx.fill();
                     
-                    // Frame center crosshair
+                    // Frame center crosshair with dead zone
                     ctx.strokeStyle = '#0ff';
                     ctx.lineWidth = 2;
                     ctx.beginPath();
@@ -541,6 +662,14 @@
                     ctx.moveTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y - 20);
                     ctx.lineTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y + 20);
                     ctx.stroke();
+                    
+                    // Dead zone circle
+                    ctx.strokeStyle = 'rgba(255, 0, 255, 0.3)';
+                    ctx.setLineDash([5, 3]);
+                    ctx.beginPath();
+                    ctx.arc(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y, CONFIG.DEAD_ZONE, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
                     
                     // Connection line
                     ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
@@ -562,7 +691,7 @@
         }
 
         // ═══════════════════════════════════════════════════════════
-        // PERSON FOLLOWING ALGORITHM - ADVANCED PID-LIKE CONTROL
+        // ADVANCED STEERING CONTROL WITH IMPROVED ALGORITHM
         // ═══════════════════════════════════════════════════════════
         
         function followPerson(person) {
@@ -573,46 +702,69 @@
             // Calculate horizontal offset error
             const errorX = personCenterX - CONFIG.FRAME_CENTER_X;
             
+            // Maintain error history for smoothing
+            errorHistory.push(errorX);
+            if (errorHistory.length > HISTORY_SIZE) {
+                errorHistory.shift();
+            }
+            
             // ──────────────────────────────────────────────────────
-            // STEERING CONTROL - PD Controller
+            // ENHANCED STEERING CONTROL - PD Controller
             // ──────────────────────────────────────────────────────
             let steer = 0;
+            let pTerm = 0;
+            let dTerm = 0;
             
             if (Math.abs(errorX) > CONFIG.DEAD_ZONE) {
-                // Proportional term
-                const proportional = errorX * CONFIG.KP_STEER;
+                // Proportional term with non-linear response for small errors
+                pTerm = errorX * CONFIG.KP_STEER;
                 
-                // Derivative term (rate of change)
-                const derivative = (errorX - lastSteerError) * CONFIG.KD_STEER;
-                lastSteerError = errorX;
+                // Derivative term (rate of change) with smoothing
+                const errorChange = errorX - lastSteerError;
+                dTerm = errorChange * CONFIG.KD_STEER;
                 
                 // Combined control signal
-                steer = proportional + derivative;
+                steer = pTerm + dTerm;
+                
+                // Apply non-linear response curve for better control
+                steer = applySteeringCurve(steer, errorX);
                 
                 // Apply limits
                 steer = Math.max(-CONFIG.MAX_STEER, Math.min(CONFIG.MAX_STEER, steer));
                 
-                // Apply minimum threshold
+                // Apply minimum threshold with dead zone consideration
                 if (Math.abs(steer) < CONFIG.MIN_STEER) {
                     steer = Math.sign(steer) * CONFIG.MIN_STEER;
                 }
+                
+                lastSteerError = errorX;
             } else {
+                // Reset error when in dead zone to prevent integral windup
                 lastSteerError = 0;
+                steer = 0;
             }
             
             // ──────────────────────────────────────────────────────
-            // DRIVE CONTROL - Proportional based on size
+            // DRIVE CONTROL - Enhanced distance control
             // ──────────────────────────────────────────────────────
             let drive = 0;
             const sizeError = CONFIG.TARGET_SIZE - personSize;
             
             if (Math.abs(sizeError) > CONFIG.SIZE_TOLERANCE) {
-                drive = sizeError * CONFIG.KP_DRIVE;
-                drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
-                
-                // Apply minimum threshold
-                if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
-                    drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+                // Only move if we have reasonable steering control
+                if (Math.abs(errorX) < canvas.width * 0.3) {
+                    drive = sizeError * CONFIG.KP_DRIVE;
+                    drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
+                    
+                    // Apply minimum threshold
+                    if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
+                        drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+                    }
+                    
+                    // Reduce speed when making sharp turns
+                    if (Math.abs(steer) > 50) {
+                        drive *= 0.7;
+                    }
                 }
             }
             
@@ -621,7 +773,28 @@
             
             // Update UI
             document.getElementById('personVal').textContent = Math.round(personSize);
-            updateDebug(errorX, personSize, drive, steer, person.score * 100);
+            updateDebug(errorX, personSize, drive, steer, person.score * 100, pTerm, dTerm);
+        }
+
+        // ═══════════════════════════════════════════════════════════
+        // STEERING ENHANCEMENT FUNCTIONS
+        // ═══════════════════════════════════════════════════════════
+        
+        function applySteeringCurve(steer, error) {
+            // Apply non-linear response for better control
+            const absError = Math.abs(error);
+            const normalizedError = absError / (canvas.width / 2);
+            
+            // More aggressive response for larger errors
+            if (normalizedError > 0.3) {
+                return steer * 1.2;
+            }
+            // Smoother response for small errors
+            else if (normalizedError < 0.1) {
+                return steer * 0.8;
+            }
+            
+            return steer;
         }
 
         // ═══════════════════════════════════════════════════════════
@@ -630,14 +803,14 @@
         
         function patrolMode() {
             const t = Date.now() / 2000;
-            const drive = 35;
-            const steer = Math.sin(t) * 40;
+            const drive = 40;
+            const steer = Math.sin(t) * 60;
             throttledCommand(drive, Math.round(steer));
         }
 
         function scanMode() {
             const t = Date.now() / 1000;
-            const steer = Math.sin(t) * 50;
+            const steer = Math.sin(t) * 70;
             throttledCommand(0, Math.round(steer));
         }
 
@@ -668,7 +841,7 @@
                 })
                 .then(data => {
                     cmdCount++;
-                    if (cmdCount % 10 === 0) {
+                    if (cmdCount % 15 === 0) {
                         log(`📡 CMD #${cmdCount}: D=${drive} S=${steer}`);
                     }
                 })
@@ -697,6 +870,8 @@
             
             if (m === 'stop') {
                 sendCmd(0, 0);
+                lastSteerError = 0;
+                errorHistory = [];
             }
         }
 
@@ -713,6 +888,8 @@
                     document.getElementById('steerVal').textContent = '0';
                     mode = 'stop';
                     setMode('stop');
+                    lastSteerError = 0;
+                    errorHistory = [];
                 })
                 .catch(e => log('❌ Emergency stop failed: ' + e.message));
         }
@@ -726,12 +903,15 @@
             document.getElementById(type + 'Text').textContent = text;
         }
 
-        function updateDebug(offsetX, size, drive, steer, conf) {
+        function updateDebug(offsetX, size, drive, steer, conf, pTerm, dTerm) {
             document.getElementById('debugOffsetX').textContent = Math.round(offsetX) + ' px';
+            document.getElementById('debugError').textContent = Math.round(offsetX) + ' px';
             document.getElementById('debugSize').textContent = Math.round(size) + ' px²';
             document.getElementById('debugDrive').textContent = Math.round(drive);
             document.getElementById('debugSteer').textContent = Math.round(steer);
             document.getElementById('debugConf').textContent = Math.round(conf) + '%';
+            document.getElementById('debugPterm').textContent = Math.round(pTerm * 100) / 100;
+            document.getElementById('debugDterm').textContent = Math.round(dTerm * 100) / 100;
         }
 
         function log(msg) {
