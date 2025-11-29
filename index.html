@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Person Follower Car</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .controls {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .input-group label {
+            font-weight: bold;
+            min-width: 100px;
+        }
+        
+        .input-group input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            min-width: 200px;
+        }
+        
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+        }
+        
+        .btn-primary {
+            background: #00ff88;
+            color: #000;
+        }
+        
+        .btn-primary:hover {
+            background: #00cc6a;
+            transform: scale(1.05);
+        }
+        
+        .btn-danger {
+            background: #ff3860;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #cc2d4d;
+        }
+        
+        .btn-secondary {
+            background: #ffdd57;
+            color: #000;
+        }
+        
+        .btn-secondary:hover {
+            background: #ffd83d;
+        }
+        
+        #videoContainer {
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto 20px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        
+        #videoElement {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+        
+        .status-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .status-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .status-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .command-display {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .command-display.left { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .command-display.right { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        .command-display.forward { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        .command-display.back { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        
+        .log {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 3px;
+        }
+        
+        .log-success { color: #00ff88; }
+        .log-error { color: #ff3860; }
+        .log-info { color: #ffdd57; }
+        
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .slider {
+            background-color: #00ff88;
+        }
+        
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI Person Following Car Controller</h1>
+        
+        <div class="controls">
+            <div class="input-group">
+                <label>ESP32 IP:</label>
+                <input type="text" id="espIP" placeholder="192.168.x.x" value="">
+                <button class="btn-secondary" onclick="testConnection()">Test Connection</button>
+            </div>
+            
+            <div class="input-group">
+                <label>Auto Follow:</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="autoFollow">
+                    <span class="slider"></span>
+                </label>
+                <button class="btn-primary" onclick="startTracking()">Start Camera</button>
+                <button class="btn-danger" onclick="emergencyStop()">EMERGENCY STOP</button>
+            </div>
+        </div>
+        
+        <div id="videoContainer">
+            <video id="videoElement" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="status-panel">
+            <div class="status-card">
+                <div class="status-label">Current Command</div>
+                <div class="status-value" id="commandDisplay">READY</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Connection Status</div>
+                <div class="status-value" id="connectionStatus">Not Connected</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Detection Confidence</div>
+                <div class="status-value" id="confidence">-</div>
+            </div>
+            <div class="status-card">
+                <div class="status-label">Person Size</div>
+                <div class="status-value" id="personSize">-</div>
+            </div>
+        </div>
+        
+        <div class="log" id="logContainer">
+            <div class="log-entry log-info">System initialized. Enter ESP32 IP and start camera.</div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('videoElement');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const espIPInput = document.getElementById('espIP');
+        const autoFollowToggle = document.getElementById('autoFollow');
+        
+        let model;
+        let lastCenter = null;
+        let lastBoxSize = null;
+        let isProcessing = false;
+        let trackingActive = false;
+        let lastCommand = 'READY';
+        let lastSentTime = 0;
+        const COMMAND_INTERVAL = 200; // Send command every 200ms
+        
+        // Speed and steering parameters
+        const DRIVE_SPEED = 45;  // Forward/backward speed (0-100)
+        const STEER_ANGLE = 50;  // Steering angle (0-100)
+        
+        async function testConnection() {
+            const ip = espIPInput.value.trim();
+            if (!ip) {
+                addLog('Please enter ESP32 IP address', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://${ip}/status`);
+                const data = await response.json();
+                addLog(`Connection successful! Car status: Drive=${data.drive}, Steer=${data.steer}`, 'success');
+                document.getElementById('connectionStatus').textContent = 'Connected ✓';
+            } catch (error) {
+                addLog(`Connection failed: ${error.message}`, 'error');
+                document.getElementById('connectionStatus').textContent = 'Failed ✗';
+            }
+        }
+        
+        async function sendCarCommand(drive, steer) {
+            const ip = espIPInput.value.trim();
+            if (!ip) return;
+            
+            // Throttle commands
+            const now = Date.now();
+            if (now - lastSentTime < COMMAND_INTERVAL) return;
+            lastSentTime = now;
+            
+            try {
+                const url = `http://${ip}/control?drive=${drive}&steer=${steer}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    addLog(`Sent: Drive=${drive}, Steer=${steer}`, 'success');
+                }
+            } catch (error) {
+                addLog(`Command failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function emergencyStop() {
+            const ip = espIPInput.value.trim();
+            if (!ip) {
+                addLog('Enter ESP32 IP first!', 'error');
+                return;
+            }
+            
+            try {
+                await fetch(`http://${ip}/emergency`);
+                addLog('EMERGENCY STOP ACTIVATED!', 'error');
+                autoFollowToggle.checked = false;
+            } catch (error) {
+                addLog(`Emergency stop failed: ${error.message}`, 'error');
+            }
+        }
+        
+        async function initializeDetector() {
+            try {
+                addLog('Loading AI model...', 'info');
+                model = await cocoSsd.load();
+                addLog('AI model loaded successfully!', 'success');
+                return true;
+            } catch (error) {
+                addLog(`Model load error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 }
+                });
+                video.srcObject = stream;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                };
+                
+                addLog('Camera initialized!', 'success');
+                return true;
+            } catch (error) {
+                addLog(`Camera error: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        function getBoundingBox(bbox) {
+            return {
+                minX: bbox[0],
+                minY: bbox[1],
+                maxX: bbox[0] + bbox[2],
+                maxY: bbox[1] + bbox[3]
+            };
+        }
+        
+        function getCenter(box) {
+            return {
+                x: (box.minX + box.maxX) / 2,
+                y: (box.minY + box.maxY) / 2
+            };
+        }
+        
+        function getBoxSize(box) {
+            const width = box.maxX - box.minX;
+            const height = box.maxY - box.minY;
+            return width * height;
+        }
+        
+        function generateCommand(currentCenter, currentSize) {
+            if (!lastCenter || !lastBoxSize) {
+                lastCenter = currentCenter;
+                lastBoxSize = currentSize;
+                return 'STRAIGHT';
+            }
+            
+            const deltaX = currentCenter.x - lastCenter.x;
+            const normalizedDeltaX = deltaX / canvas.width;
+            const sizeChange = (currentSize - lastBoxSize) / lastBoxSize;
+            
+            lastCenter = currentCenter;
+            lastBoxSize = currentSize;
+            
+            // Thresholds
+            const horizontalThreshold = 0.08;
+            const sizeThreshold = 0.20;
+            
+            // Priority: Left/Right > Forward/Back
+            if (Math.abs(normalizedDeltaX) > horizontalThreshold) {
+                return normalizedDeltaX > 0 ? 'LEFT' : 'RIGHT';
+            } else if (Math.abs(sizeChange) > sizeThreshold) {
+                return sizeChange > 0 ? 'BACK' : 'FORWARD';
+            }
+            
+            return 'STRAIGHT';
+        }
+        
+        function executeCommand(command) {
+            if (!autoFollowToggle.checked) {
+                if (lastCommand !== 'READY') {
+                    sendCarCommand(0, 0); // Stop car
+                    lastCommand = 'READY';
+                }
+                return;
+            }
+            
+            let drive = 0;
+            let steer = 0;
+            
+            switch(command) {
+                case 'FORWARD':
+                    drive = DRIVE_SPEED;
+                    steer = 0;
+                    break;
+                case 'BACK':
+                    drive = -DRIVE_SPEED;
+                    steer = 0;
+                    break;
+                case 'LEFT':
+                    drive = DRIVE_SPEED;
+                    steer = -STEER_ANGLE;
+                    break;
+                case 'RIGHT':
+                    drive = DRIVE_SPEED;
+                    steer = STEER_ANGLE;
+                    break;
+                case 'STRAIGHT':
+                    drive = DRIVE_SPEED;
+                    steer = 0;
+                    break;
+                default:
+                    drive = 0;
+                    steer = 0;
+            }
+            
+            if (command !== lastCommand) {
+                sendCarCommand(drive, steer);
+                lastCommand = command;
+            }
+        }
+        
+        async function detectPerson() {
+            if (!model || isProcessing || !trackingActive) return;
+            
+            isProcessing = true;
+            
+            try {
+                const predictions = await model.detect(video);
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                const person = predictions.find(p => p.class === 'person');
+                
+                if (person) {
+                    const bbox = person.bbox;
+                    const box = getBoundingBox(bbox);
+                    const center = getCenter(box);
+                    const boxSize = getBoxSize(box);
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff88';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(bbox[0], bbox[1], bbox[2], bbox[3]);
+                    
+                    // Draw center crosshair
+                    ctx.strokeStyle = '#ff3860';
+                    ctx.lineWidth = 3;
+                    const crossSize = 20;
+                    ctx.beginPath();
+                    ctx.moveTo(center.x - crossSize, center.y);
+                    ctx.lineTo(center.x + crossSize, center.y);
+                    ctx.moveTo(center.x, center.y - crossSize);
+                    ctx.lineTo(center.x, center.y + crossSize);
+                    ctx.stroke();
+                    
+                    // Draw confidence
+                    ctx.fillStyle = '#00ff88';
+                    ctx.font = 'bold 20px Arial';
+                    ctx.fillText(`${(person.score * 100).toFixed(0)}%`, bbox[0], bbox[1] - 10);
+                    
+                    // Generate and execute command
+                    const command = generateCommand(center, boxSize);
+                    document.getElementById('commandDisplay').textContent = command;
+                    document.getElementById('confidence').textContent = `${(person.score * 100).toFixed(0)}%`;
+                    document.getElementById('personSize').textContent = `${(boxSize / (canvas.width * canvas.height) * 100).toFixed(1)}%`;
+                    
+                    executeCommand(command);
+                    
+                } else {
+                    document.getElementById('commandDisplay').textContent = 'NO PERSON';
+                    document.getElementById('confidence').textContent = '-';
+                    document.getElementById('personSize').textContent = '-';
+                    sendCarCommand(0, 0); // Stop car
+                    lastCenter = null;
+                    lastBoxSize = null;
+                }
+            } catch (error) {
+                console.error('Detection error:', error);
+            }
+            
+            isProcessing = false;
+        }
+        
+        async function startTracking() {
+            if (trackingActive) {
+                trackingActive = false;
+                addLog('Tracking stopped', 'info');
+                sendCarCommand(0, 0);
+                return;
+            }
+            
+            const cameraReady = await setupCamera();
+            if (!cameraReady) return;
+            
+            const detectorReady = await initializeDetector();
+            if (!detectorReady) return;
+            
+            trackingActive = true;
+            addLog('Tracking started!', 'success');
+            
+            setInterval(detectPerson, 100);
+        }
+        
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.insertBefore(entry, logContainer.firstChild);
+            
+            // Keep only last 20 logs
+            while (logContainer.children.length > 20) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+        
+        // Auto-stop when toggle is turned off
+        autoFollowToggle.addEventListener('change', (e) => {
+            if (!e.target.checked) {
+                sendCarCommand(0, 0);
+                addLog('Auto-follow disabled', 'info');
+            } else {
+                addLog('Auto-follow enabled', 'success');
+            }
+        });
+    </script>
+</body>
+</html>
