@@ -420,34 +420,59 @@
             }
         }
         
-        // Command generation logic
-        function generateCommand(currentCenter, currentSize) {
-            if (!lastCenter || !lastBoxSize) {
-                lastCenter = currentCenter;
-                lastBoxSize = currentSize;
-                return 'STRAIGHT';
+        // PRECISION Command generation logic with edge tracking
+        function generateCommand(centerX, centerY, boxSize) {
+            const canvasCenter = canvas.width / 2;
+            const offsetX = centerX - canvasCenter;
+            const normalizedOffset = offsetX / canvas.width;
+            
+            // Calculate size ratio for distance
+            const sizeRatio = boxSize / (canvas.width * canvas.height);
+            
+            // Update history
+            if (!lastCenter) {
+                lastCenter = { x: centerX, y: centerY };
+                lastBoxSize = boxSize;
             }
             
-            const deltaX = currentCenter.x - lastCenter.x;
-            const normalizedDeltaX = deltaX / canvas.width;
-            const sizeChange = (currentSize - lastBoxSize) / lastBoxSize;
+            const sizeChange = lastBoxSize > 0 ? (boxSize - lastBoxSize) / lastBoxSize : 0;
             
-            lastCenter = currentCenter;
-            lastBoxSize = currentSize;
+            lastCenter = { x: centerX, y: centerY };
+            lastBoxSize = boxSize;
             
-            const horizontalThreshold = 0.08;
-            const sizeThreshold = 0.20;
+            // PRECISION THRESHOLDS - Lower for better tracking
+            const centerZone = 0.15;        // Dead zone in center
+            const softTurnZone = 0.30;      // Soft turn zone
+            const hardTurnZone = 0.50;      // Hard turn at edges
             
-            if (Math.abs(normalizedDeltaX) > horizontalThreshold) {
-                return normalizedDeltaX > 0 ? 'LEFT' : 'RIGHT';
-            } else if (Math.abs(sizeChange) > sizeThreshold) {
-                return sizeChange > 0 ? 'BACK' : 'FORWARD';
+            const idealSizeMin = 0.12;      // Too far
+            const idealSizeMax = 0.30;      // Too close
+            
+            // HORIZONTAL TRACKING (Primary)
+            const absOffset = Math.abs(normalizedOffset);
+            
+            if (absOffset > hardTurnZone) {
+                // Hard turn at screen edges - FIXED INVERSION
+                return normalizedOffset > 0 ? 'HARD_RIGHT' : 'HARD_LEFT';
+            } else if (absOffset > softTurnZone) {
+                // Soft turn - FIXED INVERSION
+                return normalizedOffset > 0 ? 'SOFT_RIGHT' : 'SOFT_LEFT';
+            } else if (absOffset > centerZone) {
+                // Gentle correction - FIXED INVERSION
+                return normalizedOffset > 0 ? 'RIGHT' : 'LEFT';
+            }
+            
+            // DISTANCE CONTROL (Secondary - only when centered)
+            if (sizeRatio < idealSizeMin) {
+                return 'FORWARD';
+            } else if (sizeRatio > idealSizeMax) {
+                return 'BACK';
             }
             
             return 'STRAIGHT';
         }
         
-        // Execute command
+        // Execute command with PRECISION control
         function executeCommand(command) {
             if (!autoFollowToggle.checked) {
                 if (lastCommand !== 'READY') {
@@ -460,27 +485,59 @@
             let drive = 0;
             let steer = 0;
             
+            // PRECISION STEERING VALUES
+            const SOFT_STEER = 30;   // Gentle turns
+            const MED_STEER = 50;    // Medium turns
+            const HARD_STEER = 70;   // Sharp turns at edges
+            
+            const FORWARD_SPEED = 40;
+            const BACK_SPEED = 35;
+            
             switch(command) {
                 case 'FORWARD':
-                    drive = DRIVE_SPEED;
+                    drive = FORWARD_SPEED;
                     steer = 0;
                     break;
                 case 'BACK':
-                    drive = -DRIVE_SPEED;
+                    drive = -BACK_SPEED;
                     steer = 0;
                     break;
+                    
+                // LEFT TURNS (Person on RIGHT side of screen)
                 case 'LEFT':
-                    drive = DRIVE_SPEED;
-                    steer = -STEER_ANGLE;
+                    drive = FORWARD_SPEED;
+                    steer = -SOFT_STEER;  // NEGATIVE for LEFT
                     break;
+                case 'SOFT_LEFT':
+                    drive = FORWARD_SPEED;
+                    steer = -MED_STEER;   // NEGATIVE for LEFT
+                    break;
+                case 'HARD_LEFT':
+                    drive = FORWARD_SPEED * 0.7;  // Slower for sharp turn
+                    steer = -HARD_STEER;  // NEGATIVE for LEFT
+                    break;
+                    
+                // RIGHT TURNS (Person on LEFT side of screen)
                 case 'RIGHT':
-                    drive = DRIVE_SPEED;
-                    steer = STEER_ANGLE;
+                    drive = FORWARD_SPEED;
+                    steer = SOFT_STEER;   // POSITIVE for RIGHT
                     break;
+                case 'SOFT_RIGHT':
+                    drive = FORWARD_SPEED;
+                    steer = MED_STEER;    // POSITIVE for RIGHT
+                    break;
+                case 'HARD_RIGHT':
+                    drive = FORWARD_SPEED * 0.7;  // Slower for sharp turn
+                    steer = HARD_STEER;   // POSITIVE for RIGHT
+                    break;
+                    
                 case 'STRAIGHT':
-                    drive = DRIVE_SPEED;
+                    drive = FORWARD_SPEED;
                     steer = 0;
                     break;
+                default:
+                    drive = 0;
+                    steer = 0;
             }
             
             if (command !== lastCommand || Date.now() - lastSentTime > 500) {
@@ -489,7 +546,7 @@
             }
         }
         
-        // Person detection loop
+        // PRECISION Person detection loop with edge tracking
         async function detectPerson() {
             if (!model || isProcessing || !systemRunning) return;
             
@@ -499,15 +556,29 @@
                 const predictions = await model.detect(video);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                const person = predictions.find(p => p.class === 'person');
+                // Find ALL people and pick the one closest to center
+                const people = predictions.filter(p => p.class === 'person');
                 
-                if (person) {
+                let targetPerson = null;
+                let minDistanceToCenter = Infinity;
+                
+                // Select person closest to center for stable tracking
+                people.forEach(person => {
                     const bbox = person.bbox;
+                    const centerX = bbox[0] + bbox[2] / 2;
+                    const distToCenter = Math.abs(centerX - canvas.width / 2);
+                    
+                    if (distToCenter < minDistanceToCenter) {
+                        minDistanceToCenter = distToCenter;
+                        targetPerson = person;
+                    }
+                });
+                
+                if (targetPerson) {
+                    const bbox = targetPerson.bbox;
                     const boxSize = bbox[2] * bbox[3];
-                    const center = {
-                        x: bbox[0] + bbox[2] / 2,
-                        y: bbox[1] + bbox[3] / 2
-                    };
+                    const centerX = bbox[0] + bbox[2] / 2;
+                    const centerY = bbox[1] + bbox[3] / 2;
                     
                     // Draw bounding box
                     ctx.strokeStyle = '#00ff88';
@@ -519,21 +590,44 @@
                     ctx.lineWidth = 3;
                     const crossSize = 20;
                     ctx.beginPath();
-                    ctx.moveTo(center.x - crossSize, center.y);
-                    ctx.lineTo(center.x + crossSize, center.y);
-                    ctx.moveTo(center.x, center.y - crossSize);
-                    ctx.lineTo(center.x, center.y + crossSize);
+                    ctx.moveTo(centerX - crossSize, centerY);
+                    ctx.lineTo(centerX + crossSize, centerY);
+                    ctx.moveTo(centerX, centerY - crossSize);
+                    ctx.lineTo(centerX, centerY + crossSize);
                     ctx.stroke();
                     
-                    // Draw confidence
+                    // Draw screen center line
+                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.5)';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2, 0);
+                    ctx.lineTo(canvas.width / 2, canvas.height);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    
+                    // Draw offset indicator
+                    ctx.strokeStyle = '#00ffff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(canvas.width / 2, centerY);
+                    ctx.lineTo(centerX, centerY);
+                    ctx.stroke();
+                    
+                    // Draw confidence and position info
                     ctx.fillStyle = '#00ff88';
                     ctx.font = 'bold 24px Arial';
-                    ctx.fillText(`${(person.score * 100).toFixed(0)}%`, bbox[0] + 5, bbox[1] + 30);
+                    ctx.fillText(`${(targetPerson.score * 100).toFixed(0)}%`, bbox[0] + 5, bbox[1] + 30);
                     
-                    // Generate command
-                    const command = generateCommand(center, boxSize);
-                    updateStatus('commandDisplay', command, 'success');
-                    updateStatus('confidence', `${(person.score * 100).toFixed(0)}%`, 'success');
+                    const offsetPercent = ((centerX - canvas.width / 2) / canvas.width * 100).toFixed(0);
+                    ctx.fillStyle = '#ffff00';
+                    ctx.font = '18px Arial';
+                    ctx.fillText(`Offset: ${offsetPercent}%`, bbox[0] + 5, bbox[1] + 55);
+                    
+                    // Generate PRECISION command
+                    const command = generateCommand(centerX, centerY, boxSize);
+                    updateStatus('commandDisplay', command.replace('_', ' '), 'success');
+                    updateStatus('confidence', `${(targetPerson.score * 100).toFixed(0)}%`, 'success');
                     updateStatus('personSize', `${(boxSize / (canvas.width * canvas.height) * 100).toFixed(1)}%`, 'success');
                     
                     executeCommand(command);
