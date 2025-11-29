@@ -3,928 +3,251 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Car - Precision Steering Control</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <title>Person Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { 
-            font-family: 'Courier New', monospace;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
-            color: #0f0; 
-            padding: 10px;
-            overflow-x: hidden;
-        }
-        .container { max-width: 600px; margin: 0 auto; }
-        .panel { 
-            background: rgba(0, 255, 0, 0.05);
-            border: 2px solid #0f0;
-            padding: 15px; 
-            margin: 10px 0; 
-            border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
-        }
-        h1 { 
-            text-align: center;
-            color: #0ff;
-            font-size: 1.8em;
-            text-shadow: 0 0 10px #0ff;
-            margin-bottom: 10px;
-        }
-        h2 { 
-            color: #0f0; 
-            margin-bottom: 10px; 
-            font-size: 1.2em;
-            border-bottom: 1px solid #0f0;
-            padding-bottom: 5px;
-        }
-        input { 
-            width: 100%; 
-            padding: 12px; 
-            background: #0a0a0a;
-            border: 2px solid #0f0;
-            color: #0f0; 
-            border-radius: 5px;
-            margin: 5px 0;
-            font-family: monospace;
-            font-size: 1em;
-        }
-        input:focus {
-            outline: none;
-            border-color: #0ff;
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-        }
-        button { 
-            width: 100%; 
-            padding: 14px; 
-            background: linear-gradient(135deg, #0a0 0%, #0f0 100%);
-            color: #000; 
-            border: none; 
-            border-radius: 5px; 
-            cursor: pointer;
-            margin: 5px 0;
-            font-size: 1em;
-            font-weight: bold;
-            font-family: monospace;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-        }
-        button:hover:not(:disabled) { 
-            background: linear-gradient(135deg, #0f0 0%, #0ff 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(0, 255, 0, 0.5);
-        }
-        button:disabled {
-            background: #333;
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-        .stop-btn { 
-            background: linear-gradient(135deg, #a00 0%, #f00 100%);
-            color: #fff;
-        }
-        .stop-btn:hover { 
-            background: linear-gradient(135deg, #f00 0%, #f80 100%);
-            box-shadow: 0 5px 20px rgba(255, 0, 0, 0.5);
-        }
-        #videoContainer { 
-            position: relative; 
-            background: #000; 
-            border-radius: 10px; 
-            overflow: hidden;
-            border: 2px solid #0f0;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.3);
-        }
-        video, canvas { width: 100%; display: block; }
-        canvas { position: absolute; top: 0; left: 0; }
-        .metrics { 
-            display: grid; 
-            grid-template-columns: 1fr 1fr; 
-            gap: 10px;
-            margin: 10px 0;
-        }
-        .metric { 
-            background: rgba(0, 0, 0, 0.5);
-            padding: 12px; 
-            text-align: center; 
-            border-radius: 8px;
-            border: 1px solid #0f0;
-        }
-        .metric-label {
-            font-size: 0.9em;
-            opacity: 0.8;
-            margin-bottom: 5px;
-        }
-        .metric-value { 
-            font-size: 2em; 
-            font-weight: bold;
-            text-shadow: 0 0 10px currentColor;
-        }
-        .drive-val { color: #0f0; }
-        .steer-val { color: #0ff; }
-        .person-val { color: #ff0; }
-        .fps-val { color: #f0f; }
-        .log { 
-            background: #000; 
-            padding: 10px; 
-            height: 120px; 
-            overflow-y: auto; 
-            font-family: monospace; 
-            font-size: 0.85em;
-            border-radius: 5px;
-            border: 1px solid #0f0;
-        }
-        .log::-webkit-scrollbar { width: 8px; }
-        .log::-webkit-scrollbar-track { background: #0a0a0a; }
-        .log::-webkit-scrollbar-thumb { background: #0f0; border-radius: 4px; }
-        .status { 
-            display: inline-block; 
-            width: 12px; 
-            height: 12px; 
-            border-radius: 50%; 
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .on { background: #0f0; box-shadow: 0 0 10px #0f0; }
-        .off { background: #f00; box-shadow: 0 0 10px #f00; }
-        .hidden { display: none; }
-        .control-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-        .mode-btn {
-            padding: 12px;
-            background: rgba(0, 255, 0, 0.1);
-            border: 2px solid #0f0;
-            color: #0f0;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-align: center;
-            font-weight: bold;
-        }
-        .mode-btn:hover {
-            background: rgba(0, 255, 0, 0.2);
-            transform: scale(1.05);
-        }
-        .mode-btn.active {
-            background: rgba(0, 255, 0, 0.3);
-            border-color: #0ff;
-            color: #0ff;
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
-        }
-        .debug-panel {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
-            font-size: 0.85em;
-            border: 1px solid #0f0;
-        }
-        .debug-row {
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #1a1a1a;
+            color: white;
             display: flex;
-            justify-content: space-between;
-            padding: 3px 0;
-            border-bottom: 1px solid rgba(0, 255, 0, 0.2);
+            flex-direction: column;
+            align-items: center;
         }
-        .debug-label { color: #0ff; }
-        .debug-value { color: #ff0; font-weight: bold; }
-        .tuning-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 10px;
-        }
-        .tuning-slider {
+        
+        #container {
+            position: relative;
+            max-width: 800px;
             width: 100%;
-            margin: 5px 0;
+        }
+        
+        #videoElement {
+            width: 100%;
+            border-radius: 10px;
+            transform: scaleX(-1);
+        }
+        
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+        
+        #command {
+            margin-top: 20px;
+            padding: 20px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            font-size: 32px;
+            font-weight: bold;
+            text-transform: uppercase;
+            min-width: 200px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        
+        #command.left { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        #command.right { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+        #command.forward { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+        #command.back { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        
+        #status {
+            margin-top: 10px;
+            color: #888;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🤖 AI CAR PRECISION STEERING CONTROL</h1>
-
-        <!-- Connection Panel -->
-        <div class="panel">
-            <h2>🔗 ESP32 CONNECTION</h2>
-            <input type="text" id="esp32Ip" placeholder="Enter ESP32 IP (e.g., 192.168.1.100)">
-            <button onclick="connect()">CONNECT TO CAR</button>
-            <div style="margin-top: 10px;">
-                <span class="status off" id="connStatus"></span>
-                <span id="connText">Disconnected</span>
-            </div>
-        </div>
-
-        <!-- Camera Panel -->
-        <div class="panel">
-            <h2>📷 CAMERA & AI VISION</h2>
-            <button onclick="startCamera()">START CAMERA & AI</button>
-            <div id="videoContainer" class="hidden">
-                <video id="video" autoplay playsinline muted></video>
-                <canvas id="canvas"></canvas>
-            </div>
-            <div style="margin-top: 10px;">
-                <span class="status off" id="camStatus"></span>
-                <span id="camText">Camera inactive</span>
-            </div>
-        </div>
-
-        <!-- Control Panel -->
-        <div class="panel">
-            <h2>🎮 CONTROL MODES</h2>
-            <div class="control-grid">
-                <div class="mode-btn" id="modeFollow" onclick="setMode('follow')">
-                    👤 FOLLOW PERSON
-                </div>
-                <div class="mode-btn" id="modePatrol" onclick="setMode('patrol')">
-                    🔄 PATROL
-                </div>
-                <div class="mode-btn active" id="modeStop" onclick="setMode('stop')">
-                    ⏹️ STOP
-                </div>
-                <div class="mode-btn" id="modeScan" onclick="setMode('scan')">
-                    🔍 SCAN
-                </div>
-            </div>
-            <button class="stop-btn" onclick="emergency()" style="margin-top: 10px;">
-                🚨 EMERGENCY STOP
-            </button>
-        </div>
-
-        <!-- Tuning Panel -->
-        <div class="panel">
-            <h2>⚙️ STEERING TUNING</h2>
-            <div class="tuning-controls">
-                <div>
-                    <label>KP (Proportional): <span id="kpValue">0.25</span></label>
-                    <input type="range" min="0.01" max="1.0" step="0.01" value="0.25" 
-                           class="tuning-slider" id="kpSlider" onchange="updateTuning()">
-                </div>
-                <div>
-                    <label>KD (Derivative): <span id="kdValue">0.08</span></label>
-                    <input type="range" min="0.01" max="0.5" step="0.01" value="0.08" 
-                           class="tuning-slider" id="kdSlider" onchange="updateTuning()">
-                </div>
-                <div>
-                    <label>Dead Zone: <span id="deadzoneValue">25</span>px</label>
-                    <input type="range" min="5" max="100" step="5" value="25" 
-                           class="tuning-slider" id="deadzoneSlider" onchange="updateTuning()">
-                </div>
-                <div>
-                    <label>Max Steer: <span id="maxSteerValue">85</span></label>
-                    <input type="range" min="30" max="100" step="5" value="85" 
-                           class="tuning-slider" id="maxSteerSlider" onchange="updateTuning()">
-                </div>
-            </div>
-            <button onclick="resetTuning()" style="margin-top: 10px;">🔄 RESET TUNING</button>
-        </div>
-
-        <!-- Status Panel -->
-        <div class="panel">
-            <h2>📊 REAL-TIME TELEMETRY</h2>
-            <div class="metrics">
-                <div class="metric">
-                    <div class="metric-label">DRIVE POWER</div>
-                    <div class="metric-value drive-val" id="driveVal">0</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">STEERING</div>
-                    <div class="metric-value steer-val" id="steerVal">0</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">PERSON SIZE</div>
-                    <div class="metric-value person-val" id="personVal">-</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">FPS</div>
-                    <div class="metric-value fps-val" id="fpsVal">0</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Debug Panel -->
-        <div class="panel">
-            <h2>🔬 TRACKING DEBUG</h2>
-            <div class="debug-panel">
-                <div class="debug-row">
-                    <span class="debug-label">Person X Offset:</span>
-                    <span class="debug-value" id="debugOffsetX">0 px</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">Steering Error:</span>
-                    <span class="debug-value" id="debugError">0 px</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">P-Term:</span>
-                    <span class="debug-value" id="debugPterm">0</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">D-Term:</span>
-                    <span class="debug-value" id="debugDterm">0</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">Person Size:</span>
-                    <span class="debug-value" id="debugSize">0 px²</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">Drive Command:</span>
-                    <span class="debug-value" id="debugDrive">0</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">Steer Command:</span>
-                    <span class="debug-value" id="debugSteer">0</span>
-                </div>
-                <div class="debug-row">
-                    <span class="debug-label">Detection Conf:</span>
-                    <span class="debug-value" id="debugConf">0%</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Log Panel -->
-        <div class="panel">
-            <h2>📝 SYSTEM LOG</h2>
-            <div class="log" id="log"></div>
-        </div>
+    <h1>🎯 Real-time Person Tracker</h1>
+    <div id="container">
+        <video id="videoElement" autoplay playsinline></video>
+        <canvas id="canvas"></canvas>
     </div>
+    <div id="command">READY</div>
+    <div id="status">Initializing camera...</div>
 
     <script>
-        // ═══════════════════════════════════════════════════════════
-        // GLOBAL CONFIGURATION
-        // ═══════════════════════════════════════════════════════════
-        
-        let esp32Ip = '';
-        let connected = false;
-        let model = null;
-        let mode = 'stop';
-        let frameCount = 0;
-        let lastFps = 0;
-        let cmdCount = 0;
-        
-        const video = document.getElementById('video');
+        const video = document.getElementById('videoElement');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const commandDiv = document.getElementById('command');
+        const statusDiv = document.getElementById('status');
         
-        // ═══════════════════════════════════════════════════════════
-        // ADVANCED STEERING CONTROL WITH REAL-TIME TUNING
-        // ═══════════════════════════════════════════════════════════
+        let model;
+        let lastCenter = null;
+        let lastBoxSize = null;
+        let isProcessing = false;
         
-        let CONFIG = {
-            // Frame geometry
-            FRAME_CENTER_X: 320,
-            FRAME_CENTER_Y: 240,
-            
-            // Control parameters - NOW TUNEABLE
-            DEAD_ZONE: 25,          // Center tolerance (pixels)
-            
-            // PID-like gains - NOW TUNEABLE
-            KP_STEER: 0.25,         // Steering proportional gain (INCREASED for responsiveness)
-            KD_STEER: 0.08,         // Steering derivative gain (smoothing)
-            
-            KP_DRIVE: 0.12,         // Drive proportional gain
-            
-            // Target parameters
-            TARGET_SIZE: 35000,     // Ideal person bounding box area
-            SIZE_TOLERANCE: 10000,  // Size dead zone
-            
-            // Output limits - NOW TUNEABLE
-            MAX_STEER: 85,          // Maximum steering command
-            MIN_STEER: 20,          // Minimum steering command for movement
-            MAX_DRIVE: 70,          // Maximum drive command
-            MIN_DRIVE: 25,          // Minimum drive command
-            
-            // Safety
-            MIN_CONFIDENCE: 0.65,   // Minimum detection confidence
-            COMMAND_RATE: 80        // Command send rate (ms) - faster response
-        };
-        
-        let lastSteerError = 0;
-        let lastCommandTime = 0;
-        let errorHistory = [];
-        const HISTORY_SIZE = 5;
-
-        // ═══════════════════════════════════════════════════════════
-        // INITIALIZATION
-        // ═══════════════════════════════════════════════════════════
-        
-        window.onload = () => {
-            const saved = localStorage.getItem('esp32Ip');
-            if (saved) document.getElementById('esp32Ip').value = saved;
-            
-            // Load saved tuning
-            loadTuning();
-            log('🚀 System initialized - Advanced steering control ready');
-        };
-
-        // ═══════════════════════════════════════════════════════════
-        // TUNING CONTROLS
-        // ═══════════════════════════════════════════════════════════
-        
-        function updateTuning() {
-            CONFIG.KP_STEER = parseFloat(document.getElementById('kpSlider').value);
-            CONFIG.KD_STEER = parseFloat(document.getElementById('kdSlider').value);
-            CONFIG.DEAD_ZONE = parseInt(document.getElementById('deadzoneSlider').value);
-            CONFIG.MAX_STEER = parseInt(document.getElementById('maxSteerSlider').value);
-            
-            // Update display values
-            document.getElementById('kpValue').textContent = CONFIG.KP_STEER.toFixed(2);
-            document.getElementById('kdValue').textContent = CONFIG.KD_STEER.toFixed(2);
-            document.getElementById('deadzoneValue').textContent = CONFIG.DEAD_ZONE;
-            document.getElementById('maxSteerValue').textContent = CONFIG.MAX_STEER;
-            
-            // Save to localStorage
-            saveTuning();
-        }
-
-        function resetTuning() {
-            CONFIG.KP_STEER = 0.25;
-            CONFIG.KD_STEER = 0.08;
-            CONFIG.DEAD_ZONE = 25;
-            CONFIG.MAX_STEER = 85;
-            
-            document.getElementById('kpSlider').value = CONFIG.KP_STEER;
-            document.getElementById('kdSlider').value = CONFIG.KD_STEER;
-            document.getElementById('deadzoneSlider').value = CONFIG.DEAD_ZONE;
-            document.getElementById('maxSteerSlider').value = CONFIG.MAX_STEER;
-            
-            updateTuning();
-            log('⚙️ Tuning reset to defaults');
-        }
-
-        function saveTuning() {
-            const tuning = {
-                kp: CONFIG.KP_STEER,
-                kd: CONFIG.KD_STEER,
-                deadzone: CONFIG.DEAD_ZONE,
-                maxSteer: CONFIG.MAX_STEER
-            };
-            localStorage.setItem('steeringTuning', JSON.stringify(tuning));
-        }
-
-        function loadTuning() {
-            const saved = localStorage.getItem('steeringTuning');
-            if (saved) {
-                try {
-                    const tuning = JSON.parse(saved);
-                    CONFIG.KP_STEER = tuning.kp || 0.25;
-                    CONFIG.KD_STEER = tuning.kd || 0.08;
-                    CONFIG.DEAD_ZONE = tuning.deadzone || 25;
-                    CONFIG.MAX_STEER = tuning.maxSteer || 85;
-                    
-                    document.getElementById('kpSlider').value = CONFIG.KP_STEER;
-                    document.getElementById('kdSlider').value = CONFIG.KD_STEER;
-                    document.getElementById('deadzoneSlider').value = CONFIG.DEAD_ZONE;
-                    document.getElementById('maxSteerSlider').value = CONFIG.MAX_STEER;
-                    updateTuning();
-                } catch (e) {
-                    console.log('No saved tuning found');
-                }
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // CONNECTION MANAGEMENT
-        // ═══════════════════════════════════════════════════════════
-        
-        function connect() {
-            esp32Ip = document.getElementById('esp32Ip').value.trim();
-            if (!esp32Ip) {
-                log('❌ Please enter ESP32 IP address');
-                return;
-            }
-            
-            localStorage.setItem('esp32Ip', esp32Ip);
-            log('🔄 Connecting to ' + esp32Ip + '...');
-            
-            fetch(`http://${esp32Ip}/status`)
-                .then(r => {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.json();
-                })
-                .then(data => {
-                    connected = true;
-                    updateStatus('conn', true, 'Connected ✓');
-                    log('✅ ESP32 connected successfully');
-                    log(`📊 Status: Drive=${data.drive} Steer=${data.steer}`);
-                })
-                .catch(e => {
-                    connected = false;
-                    updateStatus('conn', false, 'Connection failed');
-                    log('❌ Connection error: ' + e.message);
-                    log('💡 Check: 1) IP correct 2) Same WiFi 3) ESP32 powered');
-                });
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // CAMERA & AI INITIALIZATION
-        // ═══════════════════════════════════════════════════════════
-        
-        async function startCamera() {
+        async function initializeDetector() {
             try {
-                log('📷 Requesting camera access...');
-                
+                statusDiv.textContent = 'Loading AI model...';
+                model = await cocoSsd.load();
+                statusDiv.textContent = 'Detector ready! Stand in front of camera.';
+                return true;
+            } catch (error) {
+                statusDiv.textContent = 'Error loading detector: ' + error.message;
+                return false;
+            }
+        }
+        
+        async function setupCamera() {
+            try {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: 'environment',
-                        width: { ideal: 640 },
-                        height: { ideal: 480 }
-                    }
+                    video: { width: 640, height: 480 }
                 });
-                
                 video.srcObject = stream;
-                document.getElementById('videoContainer').classList.remove('hidden');
                 
                 video.onloadedmetadata = () => {
-                    video.play();
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
-                    
-                    // Update center based on actual resolution
-                    CONFIG.FRAME_CENTER_X = canvas.width / 2;
-                    CONFIG.FRAME_CENTER_Y = canvas.height / 2;
-                    
-                    updateStatus('cam', true, 'Camera active ✓');
-                    log('✅ Camera started: ' + canvas.width + 'x' + canvas.height);
-                    loadModel();
                 };
                 
-            } catch (e) {
-                log('❌ Camera error: ' + e.message);
-                updateStatus('cam', false, 'Camera error');
+                return true;
+            } catch (error) {
+                statusDiv.textContent = 'Camera error: ' + error.message;
+                return false;
             }
         }
-
-        async function loadModel() {
-            try {
-                log('🤖 Loading AI model (COCO-SSD)...');
-                model = await cocoSsd.load();
-                log('✅ AI model loaded - Person detection ready');
-                detect();
-            } catch (e) {
-                log('❌ AI model error: ' + e.message);
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // DETECTION LOOP
-        // ═══════════════════════════════════════════════════════════
         
-        async function detect() {
-            if (!model) {
-                requestAnimationFrame(detect);
-                return;
+        function getBoundingBox(bbox) {
+            // bbox format: [x, y, width, height]
+            return {
+                minX: bbox[0],
+                minY: bbox[1],
+                maxX: bbox[0] + bbox[2],
+                maxY: bbox[1] + bbox[3]
+            };
+        }
+        
+        function getCenter(box) {
+            return {
+                x: (box.minX + box.maxX) / 2,
+                y: (box.minY + box.maxY) / 2
+            };
+        }
+        
+        function getBoxSize(box) {
+            const width = box.maxX - box.minX;
+            const height = box.maxY - box.minY;
+            return width * height;
+        }
+        
+        function generateCommand(currentCenter, currentSize) {
+            if (!lastCenter || !lastBoxSize) {
+                lastCenter = currentCenter;
+                lastBoxSize = currentSize;
+                return 'READY';
             }
+            
+            const deltaX = currentCenter.x - lastCenter.x;
+            const sizeChange = (currentSize - lastBoxSize) / lastBoxSize;
+            
+            lastCenter = currentCenter;
+            lastBoxSize = currentSize;
+            
+            // Thresholds for movement detection
+            const horizontalThreshold = 0.05;
+            const sizeThreshold = 0.15;
+            
+            // Priority: Left/Right > Forward/Back
+            if (Math.abs(deltaX) > horizontalThreshold) {
+                return deltaX > 0 ? 'LEFT' : 'RIGHT';
+            } else if (Math.abs(sizeChange) > sizeThreshold) {
+                return sizeChange > 0 ? 'BACK' : 'FORWARD';
+            }
+            
+            return 'STRAIGHT';
+        }
+        
+        async function detectPose() {
+            if (!model || isProcessing) return;
+            
+            isProcessing = true;
             
             try {
                 const predictions = await model.detect(video);
-                const people = predictions.filter(p => 
-                    p.class === 'person' && p.score >= CONFIG.MIN_CONFIDENCE
-                );
                 
-                // Update FPS counter
-                frameCount++;
-                const now = Date.now();
-                if (now - lastFps >= 1000) {
-                    document.getElementById('fpsVal').textContent = frameCount;
-                    frameCount = 0;
-                    lastFps = now;
-                }
-                
-                // Draw all detections
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                drawDetections(predictions);
                 
-                // Process based on mode
-                if (mode === 'follow' && people.length > 0) {
-                    const person = people.reduce((max, p) => p.score > max.score ? p : max);
-                    followPerson(person);
-                } else if (mode === 'patrol') {
-                    patrolMode();
-                } else if (mode === 'scan') {
-                    scanMode();
-                } else {
-                    if (mode === 'follow' && people.length === 0) {
-                        document.getElementById('personVal').textContent = 'NONE';
-                        updateDebug(0, 0, 0, 0, 0, 0, 0);
-                    }
-                    throttledCommand(0, 0);
-                }
+                // Find person in predictions
+                const person = predictions.find(p => p.class === 'person');
                 
-            } catch (e) {
-                console.error('Detection error:', e);
-            }
-            
-            requestAnimationFrame(detect);
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // VISUALIZATION
-        // ═══════════════════════════════════════════════════════════
-        
-        function drawDetections(predictions) {
-            predictions.forEach(p => {
-                const [x, y, w, h] = p.bbox;
-                const isPerson = p.class === 'person';
-                
-                // Bounding box
-                ctx.strokeStyle = isPerson ? '#0f0' : '#ff0';
-                ctx.lineWidth = isPerson ? 3 : 2;
-                ctx.strokeRect(x, y, w, h);
-                
-                // Label with confidence
-                ctx.fillStyle = isPerson ? '#0f0' : '#ff0';
-                ctx.font = 'bold 14px monospace';
-                const label = `${p.class} ${Math.round(p.score * 100)}%`;
-                ctx.fillText(label, x, y - 8);
-                
-                if (isPerson) {
-                    const cx = x + w / 2;
-                    const cy = y + h / 2;
+                if (person) {
+                    const bbox = person.bbox;
                     
-                    // Person center point
-                    ctx.fillStyle = '#f00';
+                    // Get bounding box in our format
+                    const box = getBoundingBox(bbox);
+                    const center = getCenter(box);
+                    const boxSize = getBoxSize(box);
+                    
+                    // Draw bounding box
+                    ctx.strokeStyle = '#00ff00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(bbox[0], bbox[1], bbox[2], bbox[3]);
+                    
+                    // Draw center point
+                    ctx.fillStyle = '#ff0000';
                     ctx.beginPath();
-                    ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+                    ctx.arc(
+                        center.x,
+                        center.y,
+                        8, 0, 2 * Math.PI
+                    );
                     ctx.fill();
                     
-                    // Frame center crosshair with dead zone
-                    ctx.strokeStyle = '#0ff';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(CONFIG.FRAME_CENTER_X - 20, CONFIG.FRAME_CENTER_Y);
-                    ctx.lineTo(CONFIG.FRAME_CENTER_X + 20, CONFIG.FRAME_CENTER_Y);
-                    ctx.moveTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y - 20);
-                    ctx.lineTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y + 20);
-                    ctx.stroke();
+                    // Draw confidence score
+                    ctx.fillStyle = '#00ff00';
+                    ctx.font = '16px Arial';
+                    ctx.fillText(
+                        `${(person.score * 100).toFixed(0)}%`,
+                        bbox[0],
+                        bbox[1] - 5
+                    );
                     
-                    // Dead zone circle
-                    ctx.strokeStyle = 'rgba(255, 0, 255, 0.3)';
-                    ctx.setLineDash([5, 3]);
-                    ctx.beginPath();
-                    ctx.arc(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y, CONFIG.DEAD_ZONE, 0, 2 * Math.PI);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
+                    // Generate and display command
+                    const command = generateCommand(center, boxSize);
+                    commandDiv.textContent = command;
+                    commandDiv.className = command.toLowerCase();
                     
-                    // Connection line
-                    ctx.strokeStyle = 'rgba(255, 255, 0, 0.6)';
-                    ctx.lineWidth = 2;
-                    ctx.setLineDash([10, 5]);
-                    ctx.beginPath();
-                    ctx.moveTo(CONFIG.FRAME_CENTER_X, CONFIG.FRAME_CENTER_Y);
-                    ctx.lineTo(cx, cy);
-                    ctx.stroke();
-                    ctx.setLineDash([]);
-                    
-                    // Offset display
-                    const offsetX = cx - CONFIG.FRAME_CENTER_X;
-                    ctx.fillStyle = '#fff';
-                    ctx.font = 'bold 12px monospace';
-                    ctx.fillText(`Δx: ${Math.round(offsetX)}px`, cx + 10, cy - 10);
+                    statusDiv.textContent = `Tracking active | Confidence: ${(person.score * 100).toFixed(0)}% | Size: ${(boxSize / (canvas.width * canvas.height) * 100).toFixed(1)}%`;
+                } else {
+                    commandDiv.textContent = 'NO PERSON';
+                    commandDiv.className = '';
+                    statusDiv.textContent = 'No person detected';
+                    lastCenter = null;
+                    lastBoxSize = null;
                 }
-            });
+            } catch (error) {
+                console.error('Detection error:', error);
+            }
+            
+            isProcessing = false;
         }
-
-        // ═══════════════════════════════════════════════════════════
-        // ADVANCED STEERING CONTROL WITH IMPROVED ALGORITHM
-        // ═══════════════════════════════════════════════════════════
         
-        function followPerson(person) {
-            const [x, y, w, h] = person.bbox;
-            const personCenterX = x + w / 2;
-            const personSize = w * h;
+        async function start() {
+            const cameraReady = await setupCamera();
+            if (!cameraReady) return;
             
-            // Calculate horizontal offset error
-            const errorX = personCenterX - CONFIG.FRAME_CENTER_X;
+            const detectorReady = await initializeDetector();
+            if (!detectorReady) return;
             
-            // Maintain error history for smoothing
-            errorHistory.push(errorX);
-            if (errorHistory.length > HISTORY_SIZE) {
-                errorHistory.shift();
-            }
-            
-            // ──────────────────────────────────────────────────────
-            // ENHANCED STEERING CONTROL - PD Controller
-            // ──────────────────────────────────────────────────────
-            let steer = 0;
-            let pTerm = 0;
-            let dTerm = 0;
-            
-            if (Math.abs(errorX) > CONFIG.DEAD_ZONE) {
-                // Proportional term with non-linear response for small errors
-                pTerm = errorX * CONFIG.KP_STEER;
-                
-                // Derivative term (rate of change) with smoothing
-                const errorChange = errorX - lastSteerError;
-                dTerm = errorChange * CONFIG.KD_STEER;
-                
-                // Combined control signal
-                steer = pTerm + dTerm;
-                
-                // Apply non-linear response curve for better control
-                steer = applySteeringCurve(steer, errorX);
-                
-                // Apply limits
-                steer = Math.max(-CONFIG.MAX_STEER, Math.min(CONFIG.MAX_STEER, steer));
-                
-                // Apply minimum threshold with dead zone consideration
-                if (Math.abs(steer) < CONFIG.MIN_STEER) {
-                    steer = Math.sign(steer) * CONFIG.MIN_STEER;
-                }
-                
-                lastSteerError = errorX;
-            } else {
-                // Reset error when in dead zone to prevent integral windup
-                lastSteerError = 0;
-                steer = 0;
-            }
-            
-            // ──────────────────────────────────────────────────────
-            // DRIVE CONTROL - Enhanced distance control
-            // ──────────────────────────────────────────────────────
-            let drive = 0;
-            const sizeError = CONFIG.TARGET_SIZE - personSize;
-            
-            if (Math.abs(sizeError) > CONFIG.SIZE_TOLERANCE) {
-                // Only move if we have reasonable steering control
-                if (Math.abs(errorX) < canvas.width * 0.3) {
-                    drive = sizeError * CONFIG.KP_DRIVE;
-                    drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
-                    
-                    // Apply minimum threshold
-                    if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
-                        drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
-                    }
-                    
-                    // Reduce speed when making sharp turns
-                    if (Math.abs(steer) > 50) {
-                        drive *= 0.7;
-                    }
-                }
-            }
-            
-            // Send command with throttling
-            throttledCommand(Math.round(drive), Math.round(steer));
-            
-            // Update UI
-            document.getElementById('personVal').textContent = Math.round(personSize);
-            updateDebug(errorX, personSize, drive, steer, person.score * 100, pTerm, dTerm);
+            // Start detection loop
+            setInterval(detectPose, 100); // 10 FPS for smooth tracking
         }
-
-        // ═══════════════════════════════════════════════════════════
-        // STEERING ENHANCEMENT FUNCTIONS
-        // ═══════════════════════════════════════════════════════════
         
-        function applySteeringCurve(steer, error) {
-            // Apply non-linear response for better control
-            const absError = Math.abs(error);
-            const normalizedError = absError / (canvas.width / 2);
-            
-            // More aggressive response for larger errors
-            if (normalizedError > 0.3) {
-                return steer * 1.2;
-            }
-            // Smoother response for small errors
-            else if (normalizedError < 0.1) {
-                return steer * 0.8;
-            }
-            
-            return steer;
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // ALTERNATE MODES
-        // ═══════════════════════════════════════════════════════════
-        
-        function patrolMode() {
-            const t = Date.now() / 2000;
-            const drive = 40;
-            const steer = Math.sin(t) * 60;
-            throttledCommand(drive, Math.round(steer));
-        }
-
-        function scanMode() {
-            const t = Date.now() / 1000;
-            const steer = Math.sin(t) * 70;
-            throttledCommand(0, Math.round(steer));
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // COMMAND TRANSMISSION
-        // ═══════════════════════════════════════════════════════════
-        
-        function throttledCommand(drive, steer) {
-            const now = Date.now();
-            if (now - lastCommandTime < CONFIG.COMMAND_RATE) return;
-            lastCommandTime = now;
-            
-            sendCmd(drive, steer);
-        }
-
-        function sendCmd(drive, steer) {
-            if (!connected) return;
-            
-            // Update UI
-            document.getElementById('driveVal').textContent = drive;
-            document.getElementById('steerVal').textContent = steer;
-            
-            // Send to ESP32
-            fetch(`http://${esp32Ip}/control?drive=${drive}&steer=${steer}`)
-                .then(r => {
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    return r.json();
-                })
-                .then(data => {
-                    cmdCount++;
-                    if (cmdCount % 15 === 0) {
-                        log(`📡 CMD #${cmdCount}: D=${drive} S=${steer}`);
-                    }
-                })
-                .catch(e => {
-                    console.error('Command error:', e);
-                    if (cmdCount % 50 === 0) {
-                        log('⚠️ Command transmission error');
-                    }
-                });
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // MODE CONTROL
-        // ═══════════════════════════════════════════════════════════
-        
-        function setMode(m) {
-            mode = m;
-            
-            // Update UI
-            document.querySelectorAll('.mode-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.getElementById('mode' + m.charAt(0).toUpperCase() + m.slice(1)).classList.add('active');
-            
-            log(`🎮 Mode: ${m.toUpperCase()}`);
-            
-            if (m === 'stop') {
-                sendCmd(0, 0);
-                lastSteerError = 0;
-                errorHistory = [];
-            }
-        }
-
-        function emergency() {
-            if (!connected) {
-                log('⚠️ Not connected to ESP32');
-                return;
-            }
-            
-            fetch(`http://${esp32Ip}/emergency`)
-                .then(() => {
-                    log('🚨 EMERGENCY STOP ACTIVATED');
-                    document.getElementById('driveVal').textContent = '0';
-                    document.getElementById('steerVal').textContent = '0';
-                    mode = 'stop';
-                    setMode('stop');
-                    lastSteerError = 0;
-                    errorHistory = [];
-                })
-                .catch(e => log('❌ Emergency stop failed: ' + e.message));
-        }
-
-        // ═══════════════════════════════════════════════════════════
-        // UI UPDATES
-        // ═══════════════════════════════════════════════════════════
-        
-        function updateStatus(type, on, text) {
-            document.getElementById(type + 'Status').className = 'status ' + (on ? 'on' : 'off');
-            document.getElementById(type + 'Text').textContent = text;
-        }
-
-        function updateDebug(offsetX, size, drive, steer, conf, pTerm, dTerm) {
-            document.getElementById('debugOffsetX').textContent = Math.round(offsetX) + ' px';
-            document.getElementById('debugError').textContent = Math.round(offsetX) + ' px';
-            document.getElementById('debugSize').textContent = Math.round(size) + ' px²';
-            document.getElementById('debugDrive').textContent = Math.round(drive);
-            document.getElementById('debugSteer').textContent = Math.round(steer);
-            document.getElementById('debugConf').textContent = Math.round(conf) + '%';
-            document.getElementById('debugPterm').textContent = Math.round(pTerm * 100) / 100;
-            document.getElementById('debugDterm').textContent = Math.round(dTerm * 100) / 100;
-        }
-
-        function log(msg) {
-            const el = document.getElementById('log');
-            const time = new Date().toLocaleTimeString();
-            el.innerHTML = `<div style="color:#0ff">[${time}]</div> ${msg}<br>` + el.innerHTML;
-            
-            // Limit log size
-            const lines = el.innerHTML.split('<br>');
-            if (lines.length > 30) {
-                el.innerHTML = lines.slice(0, 30).join('<br>');
-            }
-        }
+        start();
     </script>
 </body>
 </html>
