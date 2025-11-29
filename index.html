@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Car - Precision Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #0f0;
+            padding: 15px;
+        }
+        .container { max-width: 700px; margin: 0 auto; }
+        .panel {
+            background: rgba(0, 255, 0, 0.05);
+            border: 2px solid #0f0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        h1 { color: #0ff; text-align: center; margin-bottom: 15px; }
+        h2 { color: #0f0; font-size: 1.1em; margin-bottom: 10px; border-bottom: 1px solid #0f0; padding-bottom: 5px; }
+        input {
+            width: 100%;
+            padding: 10px;
+            background: #000;
+            border: 2px solid #0f0;
+            color: #0f0;
+            border-radius: 5px;
+            margin: 5px 0;
+            font-family: monospace;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #0a0;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px 0;
+            font-weight: bold;
+            font-family: monospace;
+            transition: all 0.2s;
+        }
+        button:hover { background: #0f0; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .stop { background: #a00; color: #fff; }
+        .stop:hover { background: #f00; }
+        #videoContainer {
+            position: relative;
+            background: #000;
+            border: 2px solid #0f0;
+            border-radius: 8px;
+            overflow: hidden;
+            display: none;
+        }
+        #videoContainer.active { display: block; }
+        video, canvas { width: 100%; display: block; }
+        canvas { position: absolute; top: 0; left: 0; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .metric {
+            background: #000;
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #0f0;
+            border-radius: 5px;
+        }
+        .metric-label { font-size: 0.85em; opacity: 0.7; }
+        .metric-value { font-size: 1.8em; font-weight: bold; margin-top: 5px; }
+        .status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+        .on { background: #0f0; box-shadow: 0 0 10px #0f0; }
+        .off { background: #f00; }
+        .log {
+            background: #000;
+            padding: 10px;
+            height: 100px;
+            overflow-y: auto;
+            font-size: 0.8em;
+            border: 1px solid #0f0;
+            border-radius: 5px;
+        }
+        .debug { background: #000; padding: 8px; border-radius: 5px; font-size: 0.85em; margin-top: 8px; }
+        .debug-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(0,255,0,0.2); }
+        .debug-label { color: #0ff; }
+        .debug-value { color: #ff0; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 AI CAR - PRECISION PD CONTROL</h1>
+
+        <div class="panel">
+            <h2>🔗 ESP32 CONNECTION</h2>
+            <input type="text" id="espIp" placeholder="192.168.x.x">
+            <button onclick="connect()">CONNECT</button>
+            <div style="margin-top: 8px;">
+                <span class="status off" id="connStatus"></span>
+                <span id="connText">Disconnected</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>📷 CAMERA & AI</h2>
+            <button onclick="startCamera()">START CAMERA</button>
+            <div id="videoContainer">
+                <video id="video" autoplay playsinline muted></video>
+                <canvas id="canvas"></canvas>
+            </div>
+            <div style="margin-top: 8px;">
+                <span class="status off" id="camStatus"></span>
+                <span id="camText">Camera off</span>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>🎮 CONTROL</h2>
+            <div class="grid2">
+                <button onclick="setMode('follow')" id="btnFollow">👤 FOLLOW</button>
+                <button onclick="setMode('stop')" id="btnStop">⏹️ STOP</button>
+            </div>
+            <button class="stop" onclick="emergency()">🚨 EMERGENCY</button>
+        </div>
+
+        <div class="panel">
+            <h2>📊 TELEMETRY</h2>
+            <div class="grid2">
+                <div class="metric">
+                    <div class="metric-label">DRIVE</div>
+                    <div class="metric-value" id="driveVal">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">STEER</div>
+                    <div class="metric-value" id="steerVal">0</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">PERSON</div>
+                    <div class="metric-value" id="personVal">-</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">FPS</div>
+                    <div class="metric-value" id="fpsVal">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>🔬 DEBUG</h2>
+            <div class="debug">
+                <div class="debug-row">
+                    <span class="debug-label">Error X:</span>
+                    <span class="debug-value" id="dbgErr">0 px</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">P-Term:</span>
+                    <span class="debug-value" id="dbgP">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">D-Term:</span>
+                    <span class="debug-value" id="dbgD">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Drive Cmd:</span>
+                    <span class="debug-value" id="dbgDrive">0</span>
+                </div>
+                <div class="debug-row">
+                    <span class="debug-label">Steer Cmd:</span>
+                    <span class="debug-value" id="dbgSteer">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h2>📝 LOG</h2>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════
+        // CONFIGURATION
+        // ═══════════════════════════════════════════════════════════
+        
+        const CONFIG = {
+            // PD Controller gains
+            KP_STEER: 0.30,          // Proportional gain (INCREASED)
+            KD_STEER: 0.10,          // Derivative gain (smoothing)
+            KP_DRIVE: 0.15,          // Drive proportional gain
+            
+            // Dead zones
+            DEAD_ZONE_X: 30,         // Horizontal dead zone (pixels)
+            DEAD_ZONE_SIZE: 12000,   // Size dead zone
+            
+            // Target
+            TARGET_SIZE: 40000,      // Target person area
+            
+            // Limits
+            MAX_STEER: 80,
+            MIN_STEER: 25,
+            MAX_DRIVE: 65,
+            MIN_DRIVE: 30,
+            
+            // Safety
+            MIN_CONFIDENCE: 0.60,
+            CMD_RATE: 100,           // ms between commands
+            
+            // Tracking stability
+            LOST_FRAMES_MAX: 10      // Frames before "person lost"
+        };
+        
+        // ═══════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════
+        
+        let esp32Ip = '';
+        let connected = false;
+        let model = null;
+        let mode = 'stop';
+        let cameraActive = false;
+        
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // PD Controller state
+        let lastError = 0;
+        let lastCmdTime = 0;
+        let frameCenter = { x: 320, y: 240 };
+        
+        // Tracking stability
+        let lostFrames = 0;
+        let lastPersonPos = null;
+        
+        // FPS
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+        
+        // ═══════════════════════════════════════════════════════════
+        // INIT
+        // ═══════════════════════════════════════════════════════════
+        
+        window.onload = () => {
+            const saved = localStorage.getItem('esp32Ip');
+            if (saved) document.getElementById('espIp').value = saved;
+            log('🚀 System ready - PD controller initialized');
+        };
+        
+        // ═══════════════════════════════════════════════════════════
+        // CONNECTION
+        // ═══════════════════════════════════════════════════════════
+        
+        async function connect() {
+            esp32Ip = document.getElementById('espIp').value.trim();
+            if (!esp32Ip) {
+                log('❌ Enter IP address');
+                return;
+            }
+            
+            localStorage.setItem('esp32Ip', esp32Ip);
+            log('🔄 Connecting to ' + esp32Ip);
+            
+            try {
+                const r = await fetch(`http://${esp32Ip}/status`);
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+                
+                connected = true;
+                updateStatus('conn', true, 'Connected ✓');
+                log('✅ Connected! Drive=' + data.drive + ' Steer=' + data.steer);
+            } catch (e) {
+                connected = false;
+                updateStatus('conn', false, 'Failed');
+                log('❌ Connection failed: ' + e.message);
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // CAMERA
+        // ═══════════════════════════════════════════════════════════
+        
+        async function startCamera() {
+            if (cameraActive) return;
+            
+            try {
+                log('📷 Starting camera...');
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'user',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                
+                video.srcObject = stream;
+                document.getElementById('videoContainer').classList.add('active');
+                
+                video.onloadedmetadata = () => {
+                    video.play();
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    frameCenter = { x: canvas.width / 2, y: canvas.height / 2 };
+                    
+                    cameraActive = true;
+                    updateStatus('cam', true, 'Active ✓');
+                    log('✅ Camera: ' + canvas.width + 'x' + canvas.height);
+                    
+                    loadModel();
+                };
+            } catch (e) {
+                log('❌ Camera error: ' + e.message);
+            }
+        }
+        
+        async function loadModel() {
+            try {
+                log('🤖 Loading AI...');
+                model = await cocoSsd.load();
+                log('✅ AI ready');
+                detect();
+            } catch (e) {
+                log('❌ AI error: ' + e.message);
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // DETECTION LOOP
+        // ═══════════════════════════════════════════════════════════
+        
+        async function detect() {
+            if (!model) {
+                requestAnimationFrame(detect);
+                return;
+            }
+            
+            try {
+                const predictions = await model.detect(video);
+                
+                // FPS
+                frameCount++;
+                const now = Date.now();
+                if (now - lastFpsTime >= 1000) {
+                    document.getElementById('fpsVal').textContent = frameCount;
+                    frameCount = 0;
+                    lastFpsTime = now;
+                }
+                
+                // Filter people with confidence
+                const people = predictions.filter(p => 
+                    p.class === 'person' && p.score >= CONFIG.MIN_CONFIDENCE
+                );
+                
+                // Clear canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Process
+                if (mode === 'follow') {
+                    if (people.length > 0) {
+                        // Pick person closest to last position (or center if first frame)
+                        const targetRef = lastPersonPos || frameCenter;
+                        let bestPerson = people[0];
+                        let minDist = Infinity;
+                        
+                        people.forEach(p => {
+                            const cx = p.bbox[0] + p.bbox[2] / 2;
+                            const cy = p.bbox[1] + p.bbox[3] / 2;
+                            const dist = Math.sqrt(
+                                Math.pow(cx - targetRef.x, 2) + 
+                                Math.pow(cy - targetRef.y, 2)
+                            );
+                            if (dist < minDist) {
+                                minDist = dist;
+                                bestPerson = p;
+                            }
+                        });
+                        
+                        followPerson(bestPerson);
+                        lostFrames = 0;
+                    } else {
+                        lostFrames++;
+                        if (lostFrames > CONFIG.LOST_FRAMES_MAX) {
+                            document.getElementById('personVal').textContent = 'LOST';
+                            sendCmd(0, 0);
+                            lastPersonPos = null;
+                        }
+                    }
+                    
+                    // Draw all detections for context
+                    drawDetections(predictions);
+                } else {
+                    sendCmd(0, 0);
+                }
+                
+            } catch (e) {
+                console.error('Detection error:', e);
+            }
+            
+            requestAnimationFrame(detect);
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // VISUALIZATION
+        // ═══════════════════════════════════════════════════════════
+        
+        function drawDetections(predictions) {
+            predictions.forEach(p => {
+                const [x, y, w, h] = p.bbox;
+                const isPerson = p.class === 'person';
+                
+                ctx.strokeStyle = isPerson ? '#0f0' : '#ff0';
+                ctx.lineWidth = isPerson ? 3 : 2;
+                ctx.strokeRect(x, y, w, h);
+                
+                ctx.fillStyle = isPerson ? '#0f0' : '#ff0';
+                ctx.font = 'bold 14px monospace';
+                ctx.fillText(`${p.class} ${Math.round(p.score * 100)}%`, x, y - 5);
+                
+                if (isPerson) {
+                    const cx = x + w / 2;
+                    const cy = y + h / 2;
+                    
+                    // Person center
+                    ctx.fillStyle = '#f00';
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 6, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            });
+            
+            // Frame center crosshair
+            ctx.strokeStyle = '#0ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(frameCenter.x - 20, frameCenter.y);
+            ctx.lineTo(frameCenter.x + 20, frameCenter.y);
+            ctx.moveTo(frameCenter.x, frameCenter.y - 20);
+            ctx.lineTo(frameCenter.x, frameCenter.y + 20);
+            ctx.stroke();
+            
+            // Dead zone circle
+            ctx.strokeStyle = 'rgba(255, 0, 255, 0.4)';
+            ctx.setLineDash([5, 3]);
+            ctx.beginPath();
+            ctx.arc(frameCenter.x, frameCenter.y, CONFIG.DEAD_ZONE_X, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // PD CONTROLLER - PRECISION STEERING
+        // ═══════════════════════════════════════════════════════════
+        
+        function followPerson(person) {
+            const [x, y, w, h] = person.bbox;
+            const cx = x + w / 2;
+            const cy = y + h / 2;
+            const size = w * h;
+            
+            // Save position for next frame tracking
+            lastPersonPos = { x: cx, y: cy };
+            
+            // Draw tracking line
+            ctx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 5]);
+            ctx.beginPath();
+            ctx.moveTo(frameCenter.x, frameCenter.y);
+            ctx.lineTo(cx, cy);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Error
+            const errorX = cx - frameCenter.x;
+            
+            // ──────────────────────────────────────────────────────
+            // STEERING - PD CONTROL
+            // ──────────────────────────────────────────────────────
+            let steer = 0;
+            let pTerm = 0;
+            let dTerm = 0;
+            
+            if (Math.abs(errorX) > CONFIG.DEAD_ZONE_X) {
+                // Proportional
+                pTerm = errorX * CONFIG.KP_STEER;
+                
+                // Derivative (smoothing)
+                const errorChange = errorX - lastError;
+                dTerm = errorChange * CONFIG.KD_STEER;
+                
+                // Combined
+                steer = pTerm + dTerm;
+                
+                // Clamp
+                steer = Math.max(-CONFIG.MAX_STEER, Math.min(CONFIG.MAX_STEER, steer));
+                
+                // Minimum threshold
+                if (Math.abs(steer) < CONFIG.MIN_STEER) {
+                    steer = Math.sign(steer) * CONFIG.MIN_STEER;
+                }
+                
+                lastError = errorX;
+            } else {
+                lastError = 0;
+                steer = 0;
+            }
+            
+            // ──────────────────────────────────────────────────────
+            // DRIVE - SIZE CONTROL
+            // ──────────────────────────────────────────────────────
+            let drive = 0;
+            const sizeError = CONFIG.TARGET_SIZE - size;
+            
+            if (Math.abs(sizeError) > CONFIG.DEAD_ZONE_SIZE) {
+                // Only drive if steering is reasonable
+                if (Math.abs(errorX) < canvas.width * 0.35) {
+                    drive = sizeError * CONFIG.KP_DRIVE;
+                    drive = Math.max(-CONFIG.MAX_DRIVE, Math.min(CONFIG.MAX_DRIVE, drive));
+                    
+                    // Minimum
+                    if (Math.abs(drive) < CONFIG.MIN_DRIVE) {
+                        drive = Math.sign(drive) * CONFIG.MIN_DRIVE;
+                    }
+                    
+                    // Reduce speed on sharp turns
+                    if (Math.abs(steer) > 60) {
+                        drive *= 0.6;
+                    }
+                }
+            }
+            
+            // Send with throttling
+            throttledCmd(Math.round(drive), Math.round(steer));
+            
+            // Update UI
+            document.getElementById('personVal').textContent = Math.round(size);
+            updateDebug(errorX, pTerm, dTerm, drive, steer);
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // COMMAND SENDING
+        // ═══════════════════════════════════════════════════════════
+        
+        function throttledCmd(drive, steer) {
+            const now = Date.now();
+            if (now - lastCmdTime < CONFIG.CMD_RATE) return;
+            lastCmdTime = now;
+            
+            sendCmd(drive, steer);
+        }
+        
+        function sendCmd(drive, steer) {
+            document.getElementById('driveVal').textContent = drive;
+            document.getElementById('steerVal').textContent = steer;
+            
+            if (!connected) return;
+            
+            fetch(`http://${esp32Ip}/control?drive=${drive}&steer=${steer}`)
+                .catch(e => console.error('Cmd error:', e));
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // MODE CONTROL
+        // ═══════════════════════════════════════════════════════════
+        
+        function setMode(m) {
+            mode = m;
+            log('🎮 Mode: ' + m.toUpperCase());
+            
+            if (m === 'stop') {
+                sendCmd(0, 0);
+                lastError = 0;
+                lastPersonPos = null;
+            }
+        }
+        
+        function emergency() {
+            if (!connected) {
+                log('⚠️ Not connected');
+                return;
+            }
+            
+            fetch(`http://${esp32Ip}/emergency`)
+                .then(() => {
+                    log('🚨 EMERGENCY STOP');
+                    sendCmd(0, 0);
+                    setMode('stop');
+                    lastError = 0;
+                    lastPersonPos = null;
+                })
+                .catch(e => log('❌ Emergency failed: ' + e.message));
+        }
+        
+        // ═══════════════════════════════════════════════════════════
+        // UI
+        // ═══════════════════════════════════════════════════════════
+        
+        function updateStatus(type, on, text) {
+            document.getElementById(type + 'Status').className = 'status ' + (on ? 'on' : 'off');
+            document.getElementById(type + 'Text').textContent = text;
+        }
+        
+        function updateDebug(err, p, d, drive, steer) {
+            document.getElementById('dbgErr').textContent = Math.round(err) + ' px';
+            document.getElementById('dbgP').textContent = p.toFixed(2);
+            document.getElementById('dbgD').textContent = d.toFixed(2);
+            document.getElementById('dbgDrive').textContent = drive;
+            document.getElementById('dbgSteer').textContent = steer;
+        }
+        
+        function log(msg) {
+            const el = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            el.innerHTML = `<div>[${time}] ${msg}</div>` + el.innerHTML;
+            
+            const lines = el.innerHTML.split('</div>');
+            if (lines.length > 25) {
+                el.innerHTML = lines.slice(0, 25).join('</div>');
+            }
+        }
+    </script>
+</body>
+</html>
