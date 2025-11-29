@@ -26,6 +26,7 @@
             text-align: center;
             margin-bottom: 20px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 2em;
         }
         
         .controls {
@@ -69,12 +70,17 @@
             text-transform: uppercase;
         }
         
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         .btn-primary {
             background: #00ff88;
             color: #000;
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             background: #00cc6a;
             transform: scale(1.05);
         }
@@ -104,6 +110,7 @@
             border-radius: 15px;
             overflow: hidden;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            background: #000;
         }
         
         #videoElement {
@@ -148,26 +155,9 @@
             margin-bottom: 5px;
         }
         
-        .command-display {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px;
-            border-radius: 15px;
-            font-size: 48px;
-            font-weight: bold;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        
-        .command-display.left { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-        .command-display.right { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-        .command-display.forward { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-        .command-display.back { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+        .status-value.success { color: #00ff88; }
+        .status-value.error { color: #ff3860; }
+        .status-value.warning { color: #ffdd57; }
         
         .log {
             background: rgba(0,0,0,0.5);
@@ -232,6 +222,12 @@
         input:checked + .slider:before {
             transform: translateX(26px);
         }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+        }
     </style>
 </head>
 <body>
@@ -251,13 +247,13 @@
                     <input type="checkbox" id="autoFollow">
                     <span class="slider"></span>
                 </label>
-                <button class="btn-primary" onclick="startTracking()">Start Camera</button>
-                <button class="btn-danger" onclick="emergencyStop()">EMERGENCY STOP</button>
+                <button class="btn-primary" id="startBtn" onclick="startSystem()">Start Camera & AI</button>
+                <button class="btn-danger" onclick="emergencyStop()">🚨 EMERGENCY STOP</button>
             </div>
         </div>
         
         <div id="videoContainer">
-            <video id="videoElement" autoplay playsinline></video>
+            <video id="videoElement" autoplay playsinline muted></video>
             <canvas id="canvas"></canvas>
         </div>
         
@@ -281,7 +277,7 @@
         </div>
         
         <div class="log" id="logContainer">
-            <div class="log-entry log-info">System initialized. Enter ESP32 IP and start camera.</div>
+            <div class="log-entry log-info">🚀 System initialized. Enter ESP32 IP and click 'Start Camera & AI'</div>
         </div>
     </div>
 
@@ -291,130 +287,140 @@
         const ctx = canvas.getContext('2d');
         const espIPInput = document.getElementById('espIP');
         const autoFollowToggle = document.getElementById('autoFollow');
+        const startBtn = document.getElementById('startBtn');
         
-        let model;
+        let model = null;
         let lastCenter = null;
         let lastBoxSize = null;
         let isProcessing = false;
-        let trackingActive = false;
+        let systemRunning = false;
+        let detectionInterval = null;
         let lastCommand = 'READY';
         let lastSentTime = 0;
-        const COMMAND_INTERVAL = 200; // Send command every 200ms
+        const COMMAND_INTERVAL = 200;
         
-        // Speed and steering parameters
-        const DRIVE_SPEED = 45;  // Forward/backward speed (0-100)
-        const STEER_ANGLE = 50;  // Steering angle (0-100)
+        // Speed parameters
+        const DRIVE_SPEED = 45;
+        const STEER_ANGLE = 50;
         
+        // Test ESP32 connection
         async function testConnection() {
             const ip = espIPInput.value.trim();
             if (!ip) {
-                addLog('Please enter ESP32 IP address', 'error');
+                addLog('❌ Please enter ESP32 IP address', 'error');
+                updateStatus('connectionStatus', 'No IP', 'error');
                 return;
             }
             
+            addLog('🔍 Testing connection...', 'info');
+            
             try {
-                const response = await fetch(`http://${ip}/status`);
+                const response = await fetch(`http://${ip}/status`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) throw new Error('Connection failed');
+                
                 const data = await response.json();
-                addLog(`Connection successful! Car status: Drive=${data.drive}, Steer=${data.steer}`, 'success');
-                document.getElementById('connectionStatus').textContent = 'Connected ✓';
+                addLog(`✅ Connected! Drive=${data.drive}, Steer=${data.steer}, Distance=${data.distance}cm`, 'success');
+                updateStatus('connectionStatus', 'Connected ✓', 'success');
             } catch (error) {
-                addLog(`Connection failed: ${error.message}`, 'error');
-                document.getElementById('connectionStatus').textContent = 'Failed ✗';
+                addLog(`❌ Connection failed: ${error.message}`, 'error');
+                addLog('💡 Make sure ESP32 is on same network and IP is correct', 'info');
+                updateStatus('connectionStatus', 'Failed ✗', 'error');
             }
         }
         
+        // Send command to car
         async function sendCarCommand(drive, steer) {
             const ip = espIPInput.value.trim();
             if (!ip) return;
             
-            // Throttle commands
             const now = Date.now();
             if (now - lastSentTime < COMMAND_INTERVAL) return;
             lastSentTime = now;
             
             try {
                 const url = `http://${ip}/control?drive=${drive}&steer=${steer}`;
-                const response = await fetch(url);
+                const response = await fetch(url, { method: 'GET', mode: 'cors' });
                 const data = await response.json();
                 
                 if (data.status === 'ok') {
-                    addLog(`Sent: Drive=${drive}, Steer=${steer}`, 'success');
+                    addLog(`📡 Sent: Drive=${drive}, Steer=${steer}`, 'success');
                 }
             } catch (error) {
-                addLog(`Command failed: ${error.message}`, 'error');
+                addLog(`⚠️ Command failed: ${error.message}`, 'error');
             }
         }
         
+        // Emergency stop
         async function emergencyStop() {
             const ip = espIPInput.value.trim();
             if (!ip) {
-                addLog('Enter ESP32 IP first!', 'error');
+                addLog('❌ Enter ESP32 IP first!', 'error');
                 return;
             }
             
             try {
-                await fetch(`http://${ip}/emergency`);
-                addLog('EMERGENCY STOP ACTIVATED!', 'error');
+                await fetch(`http://${ip}/emergency`, { method: 'GET', mode: 'cors' });
+                addLog('🚨 EMERGENCY STOP ACTIVATED!', 'error');
                 autoFollowToggle.checked = false;
+                updateStatus('commandDisplay', 'STOPPED', 'error');
             } catch (error) {
-                addLog(`Emergency stop failed: ${error.message}`, 'error');
+                addLog(`❌ Emergency stop failed: ${error.message}`, 'error');
             }
         }
         
-        async function initializeDetector() {
+        // Initialize AI model
+        async function initializeModel() {
+            if (model) return true;
+            
             try {
-                addLog('Loading AI model...', 'info');
+                addLog('🧠 Loading AI model...', 'info');
                 model = await cocoSsd.load();
-                addLog('AI model loaded successfully!', 'success');
+                addLog('✅ AI model loaded!', 'success');
                 return true;
             } catch (error) {
-                addLog(`Model load error: ${error.message}`, 'error');
+                addLog(`❌ Model error: ${error.message}`, 'error');
                 return false;
             }
         }
         
+        // Setup camera
         async function setupCamera() {
             try {
+                addLog('📷 Requesting camera access...', 'info');
+                
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 640, height: 480 }
+                    video: { 
+                        width: { ideal: 640 },
+                        height: { ideal: 480 },
+                        facingMode: 'user'
+                    }
                 });
+                
                 video.srcObject = stream;
                 
-                video.onloadedmetadata = () => {
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-                };
+                // Wait for video to be ready
+                await new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        resolve();
+                    };
+                });
                 
-                addLog('Camera initialized!', 'success');
+                addLog('✅ Camera ready!', 'success');
                 return true;
             } catch (error) {
-                addLog(`Camera error: ${error.message}`, 'error');
+                addLog(`❌ Camera error: ${error.message}`, 'error');
+                addLog('💡 Please allow camera permissions', 'info');
                 return false;
             }
         }
         
-        function getBoundingBox(bbox) {
-            return {
-                minX: bbox[0],
-                minY: bbox[1],
-                maxX: bbox[0] + bbox[2],
-                maxY: bbox[1] + bbox[3]
-            };
-        }
-        
-        function getCenter(box) {
-            return {
-                x: (box.minX + box.maxX) / 2,
-                y: (box.minY + box.maxY) / 2
-            };
-        }
-        
-        function getBoxSize(box) {
-            const width = box.maxX - box.minX;
-            const height = box.maxY - box.minY;
-            return width * height;
-        }
-        
+        // Command generation logic
         function generateCommand(currentCenter, currentSize) {
             if (!lastCenter || !lastBoxSize) {
                 lastCenter = currentCenter;
@@ -429,11 +435,9 @@
             lastCenter = currentCenter;
             lastBoxSize = currentSize;
             
-            // Thresholds
             const horizontalThreshold = 0.08;
             const sizeThreshold = 0.20;
             
-            // Priority: Left/Right > Forward/Back
             if (Math.abs(normalizedDeltaX) > horizontalThreshold) {
                 return normalizedDeltaX > 0 ? 'LEFT' : 'RIGHT';
             } else if (Math.abs(sizeChange) > sizeThreshold) {
@@ -443,10 +447,11 @@
             return 'STRAIGHT';
         }
         
+        // Execute command
         function executeCommand(command) {
             if (!autoFollowToggle.checked) {
                 if (lastCommand !== 'READY') {
-                    sendCarCommand(0, 0); // Stop car
+                    sendCarCommand(0, 0);
                     lastCommand = 'READY';
                 }
                 return;
@@ -476,19 +481,17 @@
                     drive = DRIVE_SPEED;
                     steer = 0;
                     break;
-                default:
-                    drive = 0;
-                    steer = 0;
             }
             
-            if (command !== lastCommand) {
+            if (command !== lastCommand || Date.now() - lastSentTime > 500) {
                 sendCarCommand(drive, steer);
                 lastCommand = command;
             }
         }
         
+        // Person detection loop
         async function detectPerson() {
-            if (!model || isProcessing || !trackingActive) return;
+            if (!model || isProcessing || !systemRunning) return;
             
             isProcessing = true;
             
@@ -500,9 +503,11 @@
                 
                 if (person) {
                     const bbox = person.bbox;
-                    const box = getBoundingBox(bbox);
-                    const center = getCenter(box);
-                    const boxSize = getBoxSize(box);
+                    const boxSize = bbox[2] * bbox[3];
+                    const center = {
+                        x: bbox[0] + bbox[2] / 2,
+                        y: bbox[1] + bbox[3] / 2
+                    };
                     
                     // Draw bounding box
                     ctx.strokeStyle = '#00ff88';
@@ -522,50 +527,83 @@
                     
                     // Draw confidence
                     ctx.fillStyle = '#00ff88';
-                    ctx.font = 'bold 20px Arial';
-                    ctx.fillText(`${(person.score * 100).toFixed(0)}%`, bbox[0], bbox[1] - 10);
+                    ctx.font = 'bold 24px Arial';
+                    ctx.fillText(`${(person.score * 100).toFixed(0)}%`, bbox[0] + 5, bbox[1] + 30);
                     
-                    // Generate and execute command
+                    // Generate command
                     const command = generateCommand(center, boxSize);
-                    document.getElementById('commandDisplay').textContent = command;
-                    document.getElementById('confidence').textContent = `${(person.score * 100).toFixed(0)}%`;
-                    document.getElementById('personSize').textContent = `${(boxSize / (canvas.width * canvas.height) * 100).toFixed(1)}%`;
+                    updateStatus('commandDisplay', command, 'success');
+                    updateStatus('confidence', `${(person.score * 100).toFixed(0)}%`, 'success');
+                    updateStatus('personSize', `${(boxSize / (canvas.width * canvas.height) * 100).toFixed(1)}%`, 'success');
                     
                     executeCommand(command);
                     
                 } else {
-                    document.getElementById('commandDisplay').textContent = 'NO PERSON';
-                    document.getElementById('confidence').textContent = '-';
-                    document.getElementById('personSize').textContent = '-';
-                    sendCarCommand(0, 0); // Stop car
+                    updateStatus('commandDisplay', 'NO PERSON', 'warning');
+                    updateStatus('confidence', '-', '');
+                    updateStatus('personSize', '-', '');
+                    
+                    if (autoFollowToggle.checked) {
+                        sendCarCommand(0, 0);
+                    }
+                    
                     lastCenter = null;
                     lastBoxSize = null;
                 }
             } catch (error) {
                 console.error('Detection error:', error);
+                addLog(`⚠️ Detection error: ${error.message}`, 'error');
             }
             
             isProcessing = false;
         }
         
-        async function startTracking() {
-            if (trackingActive) {
-                trackingActive = false;
-                addLog('Tracking stopped', 'info');
+        // Start the system
+        async function startSystem() {
+            if (systemRunning) {
+                // Stop system
+                systemRunning = false;
+                if (detectionInterval) clearInterval(detectionInterval);
                 sendCarCommand(0, 0);
+                
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
+                
+                startBtn.textContent = 'Start Camera & AI';
+                addLog('⏸️ System stopped', 'info');
                 return;
             }
             
+            // Start system
+            startBtn.disabled = true;
+            
             const cameraReady = await setupCamera();
-            if (!cameraReady) return;
+            if (!cameraReady) {
+                startBtn.disabled = false;
+                return;
+            }
             
-            const detectorReady = await initializeDetector();
-            if (!detectorReady) return;
+            const modelReady = await initializeModel();
+            if (!modelReady) {
+                startBtn.disabled = false;
+                return;
+            }
             
-            trackingActive = true;
-            addLog('Tracking started!', 'success');
+            systemRunning = true;
+            startBtn.disabled = false;
+            startBtn.textContent = 'Stop System';
+            addLog('✅ System running! Toggle "Auto Follow" to start car control', 'success');
             
-            setInterval(detectPerson, 100);
+            // Start detection loop
+            detectionInterval = setInterval(detectPerson, 100);
+        }
+        
+        // Helper functions
+        function updateStatus(elementId, text, statusClass) {
+            const element = document.getElementById(elementId);
+            element.textContent = text;
+            element.className = `status-value ${statusClass}`;
         }
         
         function addLog(message, type = 'info') {
@@ -576,19 +614,25 @@
             entry.textContent = `[${timestamp}] ${message}`;
             logContainer.insertBefore(entry, logContainer.firstChild);
             
-            // Keep only last 20 logs
-            while (logContainer.children.length > 20) {
+            while (logContainer.children.length > 25) {
                 logContainer.removeChild(logContainer.lastChild);
             }
         }
         
-        // Auto-stop when toggle is turned off
+        // Auto-follow toggle handler
         autoFollowToggle.addEventListener('change', (e) => {
             if (!e.target.checked) {
                 sendCarCommand(0, 0);
-                addLog('Auto-follow disabled', 'info');
+                addLog('⏸️ Auto-follow disabled - Car stopped', 'info');
             } else {
-                addLog('Auto-follow enabled', 'success');
+                addLog('▶️ Auto-follow enabled - Car will follow person!', 'success');
+            }
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (systemRunning) {
+                sendCarCommand(0, 0);
             }
         });
     </script>
